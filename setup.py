@@ -16,6 +16,7 @@ setup(
     license='GNU General Public License v3 (GPLv3)',
     url='https://github.com/Dawnflash/contacto',
     packages=['contacto'],
+    package_data={'contacto': ['resources/*']},
     entry_points={
         'console_scripts': [
             'contacto = contacto.cli:main',
@@ -35,7 +36,7 @@ setup(
         'Environment :: MacOS X',
         'Environment :: Win32 (MS Windows)'
     ],
-    install_requires=['sqlite3', 'click'],
+    install_requires=['PyQt5', 'click', 'pyyaml'],
     setup_requires=['pytest-runner'],
     tests_require=['pytest', 'click'],
     extras_require={
