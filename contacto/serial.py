@@ -1,11 +1,13 @@
 import yaml
 import os
+import sys
 from urllib.request import urlopen
 from .helpers import DType
 
 class Serial:
     def __init__(self, storage):
         self.storage = storage
+        self.__ref_delims = '/#*|[@_!$%^&()<>?}{~:]'
 
     def export_yaml(self, filename, max_bin_size=0):
         data = {}
@@ -15,14 +17,18 @@ class Serial:
                 data[gname] = d_group
                 for ename, entity in group.entities.items():
                     d_entity = {}
+                    if entity.thumbnail is not None:
+                        d_entity['thumbnail'] = entity.thumbnail
                     d_group[ename] = d_entity
                     for aname, attribute in entity.attributes.items():
                         value = attribute.data
                         if attribute.type is DType.EXREF:
-                            value = f"REF:{value.group.name}/{value.name}"
+                            path = (value.parent.name, value.name)
+                            value = self.__xref_serialize(path)
                         elif attribute.type is DType.AXREF:
-                            ent = value.entity
-                            value = f"REF:{ent.group.name}/{ent.name}/{value.name}"
+                            ent = value.parent
+                            path = (ent.parent.name, ent.name, value.name)
+                            value = self.__xref_serialize(path)
                         elif (attribute.type is DType.BIN
                             and max_bin_size > 0
                             and len(value) > max_bin_size):
@@ -34,10 +40,10 @@ class Serial:
                             value = f"FILE:{fname}"
 
                         d_entity[aname] = value
-
             with open(filename, 'w') as f:
                 yaml.safe_dump(data, f)
-        except:
+        except Exception as e:
+            print(str(e), file=sys.stderr)
             return False
         return True
 
@@ -47,16 +53,18 @@ class Serial:
         try:
             with open(filename, 'r') as f:
                 data = yaml.safe_load(f)
-        except:
+        except Exception as e:
+            print(str(e), file=sys.stderr)
             return False
 
         try:
             with self.storage.db_conn:
                 return self.__import_yamldata(data)
-        except:
+        except Exception as e:
             # import error, reload in-memory data
             self.storage.groups = {}
             self.storage.load_all()
+            print(str(e), file=sys.stderr)
             return False
         return True
 
@@ -123,3 +131,15 @@ class Serial:
                     return DType.AXREF, lref
                 raise Exception('Bad XREF signature')
         return DType.TEXT, str(d_attr)
+
+
+    def __xref_serialize(self, tokens):
+        for c in self.__ref_delims:
+            present = False
+            for tok in tokens:
+                if c in tok:
+                    present = True
+                    break
+            if not present:
+                return f"REF:{c}{c.join(tokens)}"
+        raise Exception('Unable to serialize XREF')
