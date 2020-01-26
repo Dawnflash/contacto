@@ -31,12 +31,11 @@ def attrdata_to_bytes(dtype, attr_data):
 
 # /GROUP/ENTITY/ATTR -> [GROUP, ENTITY, ATTR]
 def parse_ref(ref):
-    if ref.startswith('/'):
-        lref = ref[1:].split('/')
-        if len(lref) == 2:
-            return DType.EXREF, lref
-        if len(lref) == 3:
-            return DType.AXREF, lref
+    lref = ref.split('/')
+    if len(lref) == 2:
+        return DType.EXREF, lref
+    if len(lref) == 3:
+        return DType.AXREF, lref
     raise Exception('Bad REF signature')
 
 
