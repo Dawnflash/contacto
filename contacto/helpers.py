@@ -1,4 +1,7 @@
 from enum import IntEnum
+import pkgutil
+import importlib
+
 
 class DType(IntEnum):
     TEXT  = 1,
@@ -35,3 +38,22 @@ def parse_ref(ref):
         if len(lref) == 3:
             return DType.AXREF, lref
     raise Exception('Bad REF signature')
+
+
+def run_plugins(storage, whitelist=[]):
+    def wl_compliant(name):
+        if len(whitelist) == 0:
+            return True
+        _name = name.split('contacto_')[1]
+        return _name in whitelist
+
+    plugins = {
+        name: importlib.import_module(name)
+        for finder, name, ispkg
+        in pkgutil.iter_modules()
+        if name.startswith('contacto_') and wl_compliant(name)
+    }
+
+    for plugin in plugins.values():
+        if hasattr(plugin, 'plugin_init'):
+            plugin.plugin_init(storage)
