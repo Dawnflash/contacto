@@ -10,9 +10,17 @@ DML_SCRIPT = 'resources/dml.sql'
 class StorageElement(ABC):
 
 
-    def __init__(self, parent):
+    def __init__(self, parent, name):
         super().__init__()
         self.parent = parent
+
+        if '/' in name:
+            raise Exception("Illegal character '/' in name")
+        self.name = name
+
+
+    def __str__(self):
+        return f"{self.parent}/{self.name}"
 
 
     @abstractmethod
@@ -40,28 +48,33 @@ class StorageElement(ABC):
     def update_safe(self):
         try:
             with self.get_conn():
-                return self.update()
+                self.update()
+                return True
         except sqlite3.Error:
             self.read()
-            return None
+            return False
 
 
     def delete_safe(self):
         try:
             with self.get_conn():
-                return self.delete()
+                self.delete()
+                return True
         except sqlite3.Error:
-            return None
+            return False
 
 
 class Group(StorageElement):
 
 
     def __init__(self, gid, name, parent):
-        super().__init__(parent)
+        super().__init__(parent, name)
         self.id = gid
-        self.name = name
         self.entities = {}
+
+
+    def __str__(self):
+        return f"/{self.name}"
 
 
     def create_entity(self, name, thumbnail=None):
@@ -113,9 +126,8 @@ class Entity(StorageElement):
 
 
     def __init__(self, eid, name, thumbnail, parent):
-        super().__init__(parent)
+        super().__init__(parent, name)
         self.id = eid
-        self.name = name
         self.thumbnail = thumbnail
         self.attributes = {}
 
@@ -179,9 +191,8 @@ class Attribute(StorageElement):
 
 
     def __init__(self, aid, name, dtype, data, parent):
-        super().__init__(parent)
+        super().__init__(parent, name)
         self.id = aid
-        self.name = name
         self.type = dtype
         self.data = data
 
@@ -212,8 +223,7 @@ class Attribute(StorageElement):
             return self.data.name
         elif self.type is DType.AXREF:
             if stop is self:
-                apath = f"{self.parent.parent.name}/{self.parent.name}/{self.name}"
-                raise Exception(f'AXREF loop detected, deleting attribute {apath}')
+                raise Exception(f'AXREF loop detected, deleting attribute {self}')
             elif stop is None:
                 stop = self
             try:
@@ -222,6 +232,37 @@ class Attribute(StorageElement):
                 self.delete()
                 raise e
         return self.data
+
+
+    def rotate(self):
+        self.__rotate(f"{self.name}_1")
+
+
+    def rotate_safe(self):
+        try:
+            with self.get_conn():
+                self.rotate()
+                return True
+        except sqlite3.Error:
+            return False
+
+
+    def __rotate(self, nxt_name):
+        ent = self.parent
+        # recursively rotate until end of rotate-chain is found
+        if nxt_name in ent.attributes:
+            nxt_attr = ent.attributes[nxt_name]
+            nxt_name_toks = nxt_name.split('_')
+            base = '_'.join(nxt_name_toks[:-1])
+            sfx = int(nxt_name_toks[-1]) + 1
+
+            nxt_attr.__rotate(f"{base}_{sfx}")
+
+            nxt_attr.type = self.type
+            nxt_attr.data = self.data
+            nxt_attr.update()
+        else:
+            ent.create_attribute(nxt_name, self.type, self.data)
 
 
 # manages the database

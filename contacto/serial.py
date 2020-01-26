@@ -2,12 +2,11 @@ import yaml
 import os
 import sys
 from urllib.request import urlopen
-from .helpers import DType
+from .helpers import DType, parse_ref
 
 class Serial:
     def __init__(self, storage):
         self.storage = storage
-        self.__ref_delims = '/#*|[@_!$%^&()<>?}{~:]'
 
     def export_yaml(self, filename, max_bin_size=0):
         data = {}
@@ -22,13 +21,8 @@ class Serial:
                     d_group[ename] = d_entity
                     for aname, attribute in entity.attributes.items():
                         value = attribute.data
-                        if attribute.type is DType.EXREF:
-                            path = (value.parent.name, value.name)
-                            value = self.__xref_serialize(path)
-                        elif attribute.type is DType.AXREF:
-                            ent = value.parent
-                            path = (ent.parent.name, ent.name, value.name)
-                            value = self.__xref_serialize(path)
+                        if attribute.type.is_xref():
+                            value = f"REF:{value}"
                         elif (attribute.type is DType.BIN
                             and max_bin_size > 0
                             and len(value) > max_bin_size):
@@ -86,7 +80,7 @@ class Serial:
                             entity.update()
                             continue
                     # XREFs may not resolve yet, bypass saving them for now
-                    isXREF = atype is DType.EXREF or atype is DType.AXREF
+                    isXREF = atype.is_xref()
                     if isXREF:
                         ref_meta = atype, adata
                         atype, adata = DType.TEXT, '<XREF>' # bypass XREFs
@@ -122,24 +116,6 @@ class Serial:
                 with urlopen(url) as f:
                     return DType.BIN, f.read()
             if d_attr.startswith('REF:'):
-                # split references by the first character
-                sref = d_attr.split('REF:')[1]
-                lref = sref[1:].split(sref[0])
-                if len(lref) == 2:
-                    return DType.EXREF, lref
-                if len(lref) == 3:
-                    return DType.AXREF, lref
-                raise Exception('Bad XREF signature')
+                # return parsed reference
+                return parse_ref(d_attr.split('REF:')[1])
         return DType.TEXT, str(d_attr)
-
-
-    def __xref_serialize(self, tokens):
-        for c in self.__ref_delims:
-            present = False
-            for tok in tokens:
-                if c in tok:
-                    present = True
-                    break
-            if not present:
-                return f"REF:{c}{c.join(tokens)}"
-        raise Exception('Unable to serialize XREF')
