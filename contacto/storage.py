@@ -171,8 +171,9 @@ class Entity(StorageElement):
         aid = cur.lastrowid
 
         attr = Attribute(aid, name, dtype, data, self)
-        attr.ref_register()
         self.attributes[name] = attr
+
+        attr.ref_register() # blows up if loop is detected
         if name == 'thumbnail':
             self.thumbnail_from_attr()
         return attr
@@ -252,6 +253,7 @@ class Attribute(StorageElement):
     """
     def ref_register(self):
         if self.type.is_xref():
+            self.__loop_detect()
             self.data.refs.add(self)
 
 
@@ -265,6 +267,10 @@ class Attribute(StorageElement):
     def __thumb_hook(self):
         if self.__thumb:
             self.parent.thumbnail_from_attr()
+        else:
+            # propagate thumbnail update recursively
+            for ref in self.refs:
+                ref.__thumb_hook()
 
 
     def read(self):
@@ -304,11 +310,12 @@ class Attribute(StorageElement):
         self.ref_unregister()
         for ref in self.refs:
             ref.delete()
+        self.refs.clear()
         self.__thumb_hook()
 
 
     def merge(self, other):
-        # temporarily unregister both
+        # loop prevention
         self.ref_unregister()
         other.ref_unregister()
 
@@ -323,19 +330,11 @@ class Attribute(StorageElement):
         other.delete()
 
 
-    def get(self, stop=None):
+    def get(self):
         if self.type is DType.EXREF:
             return DType.TEXT, str(self.data)
         elif self.type is DType.AXREF:
-            if stop is self:
-                raise Exception(f'AXREF loop detected, deleting attribute {self}')
-            elif stop is None:
-                stop = self
-            try:
-                return self.data.get(stop)
-            except Exception as e:
-                self.delete()
-                raise e
+            return self.data.get()
         return self.type, self.data
 
 
@@ -369,6 +368,19 @@ class Attribute(StorageElement):
             nxt_attr.update()
         else:
             ent.create_attribute(nxt_name, self.type, self.data)
+
+
+    """Traverse reflinks recursively, detect loops
+    """
+    def __loop_detect(self, stop=None):
+        if self.type is DType.EXREF:
+            return
+        elif self.type is DType.AXREF:
+            if stop is self:
+                raise Exception(f'REF loop detected at {self}')
+            elif stop is None:
+                stop = self
+            self.data.__loop_detect(stop)
 
 
 # manages the database
