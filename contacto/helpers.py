@@ -130,6 +130,8 @@ def attr_val_str(attr, direct):
         s = f"<BINARY, {size_str(val)}>"
     if attr.type.is_xref():
         pfx = f'[-> {attr.data}] '
+    if attr.type == DType.EXREF:
+        s = '' # no need to print the spec twice
     return f"{pfx}{s}"
 
 

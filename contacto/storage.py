@@ -42,11 +42,19 @@ class StorageElement(ABC):
         pass
 
 
-    def get_conn(self):
+    @abstractmethod
+    def merge(self, other):
+        pass
+
+
+    def get_storage(self):
         p = self.parent
         while type(p) is not Storage:
             p = p.parent
-        return p.db_conn
+        return p
+
+    def get_conn(self):
+        return self.get_storage().db_conn
 
 
     def update_safe(self):
@@ -67,6 +75,20 @@ class StorageElement(ABC):
                 return True
         except sqlite3.Error as e:
             print(str(e), file=sys.stderr)
+            # in case of cascade, in-memory data may be corrupt
+            self.get_storage().reload()
+            return False
+
+
+    def merge_safe(self, other):
+        try:
+            with self.get_conn():
+                self.merge(other)
+                return True
+        except sqlite3.Error as e:
+            print(str(e), file=sys.stderr)
+            # in case of cascade, in-memory data may be corrupt
+            self.get_storage().reload()
             return False
 
 
@@ -83,21 +105,21 @@ class Group(StorageElement):
         return f"{self.name}"
 
 
-    def create_entity(self, name, thumbnail=None):
+    def create_entity(self, name):
         cur = self.get_conn().cursor()
-        sql = 'INSERT INTO entity VALUES (NULL, ?, ?, ?)'
-        cur.execute(sql, (name, thumbnail, self.id))
+        sql = 'INSERT INTO entity VALUES (NULL, ?, NULL, ?)'
+        cur.execute(sql, (name, self.id))
         eid = cur.lastrowid
 
-        ent = Entity(eid, name, thumbnail, self)
+        ent = Entity(eid, name, None, self)
         self.entities[name] = ent
         return ent
 
 
-    def create_entity_safe(self, name, thumbnail=None):
+    def create_entity_safe(self, name):
         try:
             with self.get_conn():
-                return self.create_entity(name, thumbnail)
+                return self.create_entity(name)
         except sqlite3.Error as e:
             print(str(e), file=sys.stderr)
             return None
@@ -122,11 +144,12 @@ class Group(StorageElement):
 
 
     def merge(self, other):
-        for name, oentity in other.entities.items():
+        for name, oentity in other.entities.copy().items():
             if name in self.entities:
                 self.entities[name].merge(oentity)
             else:
-                self.create_entity(name, oentity.thumbnail)
+                e = self.create_entity(name)
+                e.merge(oentity)
         other.delete()
 
 
@@ -138,7 +161,7 @@ class Entity(StorageElement):
         self.id = eid
         self.thumbnail = thumbnail
         self.attributes = {}
-        self.thumbnail_to_attr()
+        self.refs = set()
 
 
     def create_attribute(self, name, dtype, data):
@@ -149,6 +172,7 @@ class Entity(StorageElement):
         aid = cur.lastrowid
 
         attr = Attribute(aid, name, dtype, data, self)
+        attr.ref_register()
         self.attributes[name] = attr
         if name == 'thumbnail':
             self.thumbnail_from_attr()
@@ -174,47 +198,29 @@ class Entity(StorageElement):
     def update(self):
         sql = 'UPDATE entity SET name=?, thumbnail=? WHERE id=?'
         self.get_conn().execute(sql, (self.name, self.thumbnail, self.id))
-        self.thumbnail_to_attr()
 
 
     def delete(self):
         sql = 'DELETE FROM entity WHERE id=?'
         self.get_conn().execute(sql, [self.id])
         del self.parent.entities[self.name]
+        # delete refs pointing to me
+        for ref in self.refs:
+            ref.delete()
 
 
-    # merge other into us
     def merge(self, other):
         if other.thumbnail and not self.thumbnail:
             self.thumbnail = other.thumbnail
             self.update()
-        for name, oattr in other.attributes.items():
+        for name, oattr in other.attributes.copy().items():
             if name in self.attributes:
-                attr = self.attributes[name]
-                attr.type = oattr.type
-                attr.data = oattr.data
-                attr.update()
+                self.attributes[name].merge(oattr)
             else:
-                self.create_attribute(name, oattr.type, oattr.data)
+                # create a dummy attribute and merge oattr into it
+                attr = self.create_attribute(name, DType.TEXT, '<MERGE>')
+                attr.merge(oattr)
         other.delete()
-
-
-    def thumbnail_to_attr(self):
-        if not self.thumbnail:
-            return
-        if not validate_img(self.thumbnail):
-            self.thumbnail_from_attr()
-            print('Rejecting invalid thumbnail', file=sys.stderr)
-            return
-        if 'thumbnail' not in self.attributes:
-            self.create_attribute('thumbnail', DType.BIN, self.thumbnail)
-            return
-        thumb = self.attributes['thumbnail']
-        ttype, tdata = thumb.get()
-        if ttype is not DType.BIN or tdata != self.thumbnail:
-            thumb.type = DType.BIN
-            thumb.data = self.thumbnail
-            thumb.update()
 
 
     def thumbnail_from_attr(self):
@@ -229,8 +235,6 @@ class Entity(StorageElement):
             if self.thumbnail != tdata:
                 self.thumbnail = tdata
                 self.update()
-        else:
-            print(f'Thumbnail not registered for {self}', file=sys.stderr)
 
 
 class Attribute(StorageElement):
@@ -242,7 +246,21 @@ class Attribute(StorageElement):
         self.id = aid
         self.type = dtype
         self.data = data
-        self.__thumb_hook()
+        self.refs = set()
+
+
+    """ Registers a reference to its target
+    """
+    def ref_register(self):
+        if self.type.is_xref():
+            self.data.refs.add(self)
+
+
+    """ Unregisters a reference to its target
+    """
+    def ref_unregister(self):
+        if self.type.is_xref():
+            self.data.refs.discard(self)
 
 
     def __thumb_hook(self):
@@ -257,12 +275,25 @@ class Attribute(StorageElement):
         self.name, int_type, bin_data = cur.fetchone()
         self.type = DType(int_type)
         self.data = bytes_to_attrdata(self.type, bin_data)
+        if self.type.is_xref():
+            storage = self.get_storage()
+            self.data = storage.elem_from_refid(self.type, self.data)
 
 
     def update(self):
+        # check previous data for obsolete XREF registration
+        t, d = self.type, self.data
+        self.read() # read original data
+        t, self.type = self.type, t # swap back new data
+        d, self.data = self.data, d
+
         sql = 'UPDATE attribute SET name=?, type=?, data=? WHERE id=?'
         bin_data = attrdata_to_bytes(self.type, self.data)
         self.get_conn().execute(sql, (self.name, self.type, bin_data, self.id))
+        # unregister old ref is applicable
+        if t.is_xref():
+            d.refs.discard(self)
+        self.ref_register()
         self.__thumb_hook()
 
 
@@ -270,7 +301,27 @@ class Attribute(StorageElement):
         sql = 'DELETE FROM attribute WHERE id=?'
         self.get_conn().execute(sql, [self.id])
         del self.parent.attributes[self.name]
+        # unregister and delete refs pointing to me
+        self.ref_unregister()
+        for ref in self.refs:
+            ref.delete()
         self.__thumb_hook()
+
+
+    def merge(self, other):
+        # temporarily unregister both
+        self.ref_unregister()
+        other.ref_unregister()
+
+        # redirect all pointers to us
+        for attr in other.refs:
+            attr.data = self
+            attr.update()
+
+        self.type = other.type
+        self.data = other.data
+        self.update()
+        other.delete()
 
 
     def get(self, stop=None):
@@ -334,18 +385,17 @@ class Storage:
         self.db_cur  = self.db_conn.cursor()
         self.create_db()
 
-        # indexed by name
-        self.groups = {}
-
         # load everything from db
-        self.load_all()
+        self.reload()
 
 
     def __del__(self):
         self.db_conn.close()
 
 
-    def load_all(self):
+    def reload(self):
+        # NAME-indexed group dict
+        self.groups = {}
         # ID-indexed helper dicts
         groups_by_id = {}
         entities_by_id = {}
@@ -379,12 +429,14 @@ class Storage:
 
             if dtype is DType.EXREF:
                 attribute.data = entities_by_id[attribute.data]
+                attribute.ref_register()
             elif dtype is DType.AXREF:
                 axref_attributes.append(attribute)
 
         # replace AXREFs using actual data
         for attribute in axref_attributes:
             attribute.data = attributes_by_id[attribute.data]
+            attribute.ref_register()
 
 
     def get_group(self, name):
@@ -442,3 +494,18 @@ class Storage:
         if scope == Scope.ATTRIBUTE:
             return self.get_attribute(g, e, a)
         return None
+
+
+    def elem_from_refid(self, dtype, elem_id):
+        if not dtype.is_xref():
+            return None
+        if dtype == DType.EXREF:
+            sql = 'SELECT g.name, e.name FROM entity as e \
+                   LEFT JOIN "group" as g ON (g.id=e.group_id) WHERE e.id=?'
+            self.db_cur.execute(sql, [elem_id])
+            return self.get_entity(*self.db_cur.fetchone())
+        sql = 'SELECT g.name, e.name, a.name FROM attribute as a \
+               LEFT JOIN entity as e ON (e.id=a.entity_id) \
+               LEFT JOIN "group" as g ON (g.id=e.group_id) WHERE a.id=?'
+        self.db_cur.execute(sql, [elem_id])
+        return self.get_attribute(*self.db_cur.fetchone())

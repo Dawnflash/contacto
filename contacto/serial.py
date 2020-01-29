@@ -98,11 +98,10 @@ class Serial:
 
         try:
             with self.storage.db_conn:
-                return self.__import_yamldata(data)
+                self.__import_yamldata(data)
         except Exception as e:
             # import error, reload in-memory data
-            self.storage.groups = {}
-            self.storage.load_all()
+            self.storage.reload()
             print(str(e), file=sys.stderr)
             return False
         return True
@@ -139,10 +138,7 @@ class Serial:
         # process XREFs
         for ref_type, ref_data, attr in xref_queue:
             attr.type = ref_type
-            if ref_type is DType.EXREF:
-                attr.data = self.storage.get_entity(*ref_data[:2])
-            else: # AXREF
-                attr.data = self.storage.get_attribute(*ref_data)
+            attr.data = self.storage.get_from_rspec(ref_data)
             attr.update()
 
 

@@ -16,8 +16,7 @@ def entity_set(storage, gname, ename, data, recursive):
     ent = storage.get_entity(gname, ename)
     if ent:
         if data:
-            ent.thumbnail = data
-            ent.update_safe() or sys.exit(1)
+            click.echo('Set a "thumbnail" attribute to set thumbnail.', file=sys.stderr)
         return ent
     if recursive:
         grp = group_set(storage, gname)
@@ -41,7 +40,7 @@ def validate_scope(ctx, param, value):
 
 
 @click.group()
-@click.option('-o', '--open', 'dbname', type=click.Path(exists=True), required=True,
+@click.option('-o', '--open', 'dbname', type=click.Path(exists=False), required=True,
               help='Path to storage file')
 @click.pass_context
 def main_cmd(ctx, dbname):
@@ -88,29 +87,39 @@ def get_cmd(ctx, scope, fuzzy, value, val_fuzzy, raw, yaml, refspec):
 @click.option('-r', '--recursive', help='Create elements recursively.', is_flag=True)
 @click.option('-b', '--binary', help='Read binary data (use with -i).', is_flag=True)
 @click.option('-i', '--stdin', help='Read VALUE from stdin.', is_flag=True)
+@click.option('-R', '--rotate', help='Rotate attribute value.', is_flag=True)
 @click.argument('refspec', callback=validate_refspec)
 @click.argument('value', required=False)
 @click.pass_context
-def set_cmd(ctx, recursive, binary, stdin, refspec, value):
+def set_cmd(ctx, recursive, binary, stdin, rotate, refspec, value):
     """Create or update a REFSPEC-specified element.
 
     VALUE sets thumbnails of entities and values of attributes."""
-
-    if binary and not stdin:
-        click.echo('Warning: -b must be used with -i', file=sys.stderr)
-
-    if not stdin:
-        vtype, vdata = parse_valspec(value)
-    elif not binary:
-        vtype, vdata = DType.TEXT, sys.stdin.read()
-    else:
-        vtype, vdata = DType.BIN, sys.stdin.buffer.read()
 
     stor = ctx.obj['storage']
     scope = refspec_scope(refspec)
     if not scope:
         click.echo('Fully-specified refspec required', file=sys.stderr)
         sys.exit(1)
+
+    if binary and not stdin:
+        click.echo('Warning: -b must be used with -i', file=sys.stderr)
+
+    if not stdin:
+        try:
+            vtype, vdata = parse_valspec(value)
+        except Exception as e:
+            click.echo(str(e), file=sys.stderr)
+            sys.exit(1)
+        if vtype.is_xref():
+            vdata = stor.get_from_rspec(vdata)
+            if not vdata:
+                click.echo("Invalid reference", file=sys.stderr)
+                sys.exit(1)
+    elif not binary:
+        vtype, vdata = DType.TEXT, sys.stdin.read()
+    else:
+        vtype, vdata = DType.BIN, sys.stdin.buffer.read()
 
     if scope == Scope.GROUP:
         group_set(stor, refspec[0])
@@ -121,7 +130,9 @@ def set_cmd(ctx, recursive, binary, stdin, refspec, value):
             click.echo(f'Attributes require supplied value.', file=sys.stderr)
             sys.exit(1)
         attr = stor.get_attribute(*refspec)
-        if attr:
+        if attr and (vtype != attr.type or vdata != attr.data):
+            if rotate:
+                attr.rotate_safe() or sys.exit(1)
             attr.type, attr.data = vtype, vdata
             attr.update_safe() or sys.exit(1)
             return
@@ -161,7 +172,7 @@ def merge_cmd(ctx, refspec_src, refspec_dst):
     if type(src) != type(dst) or not hasattr(src, 'merge'):
         click.echo('You can only merge 2 entities or 2 groups.', file=sys.stderr)
         sys.exit(1)
-    dst.merge(src)
+    dst.merge_safe(src) or sys.exit(1)
 
 
 @main_cmd.command(name='import')
