@@ -32,11 +32,9 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python :: 3.6',
         'Environment :: Console',
-        'Environment :: X11 Applications :: Qt',
-        'Environment :: MacOS X',
-        'Environment :: Win32 (MS Windows)'
+        'Environment :: X11 Applications :: Qt'
     ],
-    install_requires=['PyQt5', 'click', 'pyyaml'],
+    install_requires=['PyQt5', 'click', 'pyyaml', 'pillow'],
     setup_requires=['pytest-runner'],
     tests_require=['pytest', 'click'],
     extras_require={

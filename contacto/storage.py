@@ -1,7 +1,9 @@
 import sqlite3
 import pkgutil
+import sys
 from abc import ABC, abstractmethod
-from .helpers import DType, bytes_to_attrdata, attrdata_to_bytes
+from .helpers import DType, bytes_to_attrdata, attrdata_to_bytes, validate_img
+from .helpers import Scope, refspec_scope
 
 
 DML_SCRIPT = 'resources/dml.sql'
@@ -14,6 +16,8 @@ class StorageElement(ABC):
         super().__init__()
         self.parent = parent
 
+        if type(name) is not str or name == '':
+            raise Exception("Name must be a non-empty string")
         if '/' in name:
             raise Exception("Illegal character '/' in name")
         self.name = name
@@ -50,7 +54,8 @@ class StorageElement(ABC):
             with self.get_conn():
                 self.update()
                 return True
-        except sqlite3.Error:
+        except sqlite3.Error as e:
+            print(str(e), file=sys.stderr)
             self.read()
             return False
 
@@ -60,7 +65,8 @@ class StorageElement(ABC):
             with self.get_conn():
                 self.delete()
                 return True
-        except sqlite3.Error:
+        except sqlite3.Error as e:
+            print(str(e), file=sys.stderr)
             return False
 
 
@@ -92,7 +98,8 @@ class Group(StorageElement):
         try:
             with self.get_conn():
                 return self.create_entity(name, thumbnail)
-        except sqlite3.Error:
+        except sqlite3.Error as e:
+            print(str(e), file=sys.stderr)
             return None
 
 
@@ -120,6 +127,7 @@ class Group(StorageElement):
                 self.entities[name].merge(oentity)
             else:
                 self.create_entity(name, oentity.thumbnail)
+        other.delete()
 
 
 class Entity(StorageElement):
@@ -130,6 +138,7 @@ class Entity(StorageElement):
         self.id = eid
         self.thumbnail = thumbnail
         self.attributes = {}
+        self.thumbnail_to_attr()
 
 
     def create_attribute(self, name, dtype, data):
@@ -141,6 +150,8 @@ class Entity(StorageElement):
 
         attr = Attribute(aid, name, dtype, data, self)
         self.attributes[name] = attr
+        if name == 'thumbnail':
+            self.thumbnail_from_attr()
         return attr
 
 
@@ -148,7 +159,8 @@ class Entity(StorageElement):
         try:
             with self.get_conn():
                 return self.create_attribute(name, dtype, data)
-        except sqlite3.Error:
+        except sqlite3.Error as e:
+            print(str(e), file=sys.stderr)
             return None
 
 
@@ -162,6 +174,7 @@ class Entity(StorageElement):
     def update(self):
         sql = 'UPDATE entity SET name=?, thumbnail=? WHERE id=?'
         self.get_conn().execute(sql, (self.name, self.thumbnail, self.id))
+        self.thumbnail_to_attr()
 
 
     def delete(self):
@@ -186,15 +199,55 @@ class Entity(StorageElement):
         other.delete()
 
 
+    def thumbnail_to_attr(self):
+        if not self.thumbnail:
+            return
+        if not validate_img(self.thumbnail):
+            self.thumbnail_from_attr()
+            print('Rejecting invalid thumbnail', file=sys.stderr)
+            return
+        if 'thumbnail' not in self.attributes:
+            self.create_attribute('thumbnail', DType.BIN, self.thumbnail)
+            return
+        thumb = self.attributes['thumbnail']
+        ttype, tdata = thumb.get()
+        if ttype is not DType.BIN or tdata != self.thumbnail:
+            thumb.type = DType.BIN
+            thumb.data = self.thumbnail
+            thumb.update()
+
+
+    def thumbnail_from_attr(self):
+        if 'thumbnail' not in self.attributes:
+            if self.thumbnail:
+                self.thumbnail = None
+                self.update()
+            return
+        thumb = self.attributes['thumbnail']
+        ttype, tdata = thumb.get()
+        if ttype is DType.BIN and validate_img(tdata):
+            if self.thumbnail != tdata:
+                self.thumbnail = tdata
+                self.update()
+        else:
+            print(f'Thumbnail not registered for {self}', file=sys.stderr)
+
 
 class Attribute(StorageElement):
 
 
     def __init__(self, aid, name, dtype, data, parent):
         super().__init__(parent, name)
+        self.__thumb = name == 'thumbnail'
         self.id = aid
         self.type = dtype
         self.data = data
+        self.__thumb_hook()
+
+
+    def __thumb_hook(self):
+        if self.__thumb:
+            self.parent.thumbnail_from_attr()
 
 
     def read(self):
@@ -210,17 +263,19 @@ class Attribute(StorageElement):
         sql = 'UPDATE attribute SET name=?, type=?, data=? WHERE id=?'
         bin_data = attrdata_to_bytes(self.type, self.data)
         self.get_conn().execute(sql, (self.name, self.type, bin_data, self.id))
+        self.__thumb_hook()
 
 
     def delete(self):
         sql = 'DELETE FROM attribute WHERE id=?'
         self.get_conn().execute(sql, [self.id])
         del self.parent.attributes[self.name]
+        self.__thumb_hook()
 
 
     def get(self, stop=None):
         if self.type is DType.EXREF:
-            return self.data.name
+            return DType.TEXT, str(self.data)
         elif self.type is DType.AXREF:
             if stop is self:
                 raise Exception(f'AXREF loop detected, deleting attribute {self}')
@@ -231,7 +286,7 @@ class Attribute(StorageElement):
             except Exception as e:
                 self.delete()
                 raise e
-        return self.data
+        return self.type, self.data
 
 
     def rotate(self):
@@ -243,7 +298,8 @@ class Attribute(StorageElement):
             with self.get_conn():
                 self.rotate()
                 return True
-        except sqlite3.Error:
+        except sqlite3.Error as e:
+            print(str(e), file=sys.stderr)
             return False
 
 
@@ -371,5 +427,18 @@ class Storage:
         try:
             with self.db_conn:
                 return self.create_group(name)
-        except sqlite3.Error:
+        except sqlite3.Error as e:
+            print(str(e), file=sys.stderr)
             return None
+
+
+    def get_from_rspec(self, p_rspec):
+        scope = refspec_scope(p_rspec)
+        g, e, a = p_rspec
+        if scope == Scope.GROUP:
+            return self.get_group(g)
+        if scope == Scope.ENTITY:
+            return self.get_entity(g, e)
+        if scope == Scope.ATTRIBUTE:
+            return self.get_attribute(g, e, a)
+        return None
