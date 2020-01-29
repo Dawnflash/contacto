@@ -1,9 +1,8 @@
 import yaml
 import click
 import os
-import sys
 from urllib.request import urlopen
-from .helpers import DType, Scope, parse_valspec, attr_val_str
+from .helpers import DType, Scope, parse_valspec, attr_val_str, print_error
 
 class Serial:
     def __init__(self, storage):
@@ -43,7 +42,7 @@ class Serial:
 
             yaml.safe_dump(data, file)
         except Exception as e:
-            print(str(e), file=sys.stderr)
+            print_error(e)
             return False
         return True
 
@@ -93,7 +92,7 @@ class Serial:
         try:
             data = yaml.safe_load(file)
         except Exception as e:
-            print(str(e), file=sys.stderr)
+            print_error(e)
             return False
 
         try:
@@ -102,7 +101,7 @@ class Serial:
         except Exception as e:
             # import error, reload in-memory data
             self.storage.reload()
-            print(str(e), file=sys.stderr)
+            print_error(e)
             return False
         return True
 

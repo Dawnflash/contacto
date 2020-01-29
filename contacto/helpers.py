@@ -4,6 +4,8 @@ import importlib
 from PIL import Image
 from urllib.request import urlopen
 import io
+import sys
+import click
 
 
 class DType(IntEnum):
@@ -172,3 +174,17 @@ def parse_valspec(value):
         # return parsed reference
         return parse_ref(value.split('REF:')[1])
     return DType.TEXT, value
+
+
+def print_error(err):
+    click.echo("{}: {}".format(
+        click.style("ERROR", fg='red', bold=True),
+        err, file=sys.stderr
+    ))
+
+
+def print_warning(warn):
+    click.echo("{}: {}".format(
+        click.style("WARN", fg='yellow', bold=True),
+        warn, file=sys.stderr
+    ))

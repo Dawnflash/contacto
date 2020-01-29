@@ -1,9 +1,8 @@
 import sqlite3
 import pkgutil
-import sys
 from abc import ABC, abstractmethod
 from .helpers import DType, bytes_to_attrdata, attrdata_to_bytes, validate_img
-from .helpers import Scope, refspec_scope
+from .helpers import Scope, refspec_scope, print_error
 
 
 DML_SCRIPT = 'resources/dml.sql'
@@ -62,8 +61,8 @@ class StorageElement(ABC):
             with self.get_conn():
                 self.update()
                 return True
-        except sqlite3.Error as e:
-            print(str(e), file=sys.stderr)
+        except Exception as e:
+            print_error(e)
             self.read()
             return False
 
@@ -73,8 +72,8 @@ class StorageElement(ABC):
             with self.get_conn():
                 self.delete()
                 return True
-        except sqlite3.Error as e:
-            print(str(e), file=sys.stderr)
+        except Exception as e:
+            print_error(e)
             # in case of cascade, in-memory data may be corrupt
             self.get_storage().reload()
             return False
@@ -85,8 +84,8 @@ class StorageElement(ABC):
             with self.get_conn():
                 self.merge(other)
                 return True
-        except sqlite3.Error as e:
-            print(str(e), file=sys.stderr)
+        except Exception as e:
+            print_error(e)
             # in case of cascade, in-memory data may be corrupt
             self.get_storage().reload()
             return False
@@ -120,8 +119,8 @@ class Group(StorageElement):
         try:
             with self.get_conn():
                 return self.create_entity(name)
-        except sqlite3.Error as e:
-            print(str(e), file=sys.stderr)
+        except Exception as e:
+            print_error(e)
             return None
 
 
@@ -183,8 +182,8 @@ class Entity(StorageElement):
         try:
             with self.get_conn():
                 return self.create_attribute(name, dtype, data)
-        except sqlite3.Error as e:
-            print(str(e), file=sys.stderr)
+        except Exception as e:
+            print_error(e)
             return None
 
 
@@ -349,8 +348,8 @@ class Attribute(StorageElement):
             with self.get_conn():
                 self.rotate()
                 return True
-        except sqlite3.Error as e:
-            print(str(e), file=sys.stderr)
+        except Exception as e:
+            print_error(e)
             return False
 
 
@@ -479,8 +478,8 @@ class Storage:
         try:
             with self.db_conn:
                 return self.create_group(name)
-        except sqlite3.Error as e:
-            print(str(e), file=sys.stderr)
+        except Exception as e:
+            print_error(e)
             return None
 
 
