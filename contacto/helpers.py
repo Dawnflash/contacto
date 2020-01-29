@@ -77,23 +77,36 @@ def parse_ref(rspec):
     raise Exception('Bad REF signature')
 
 
+def get_plugins():
+    def fam_name(name):
+        return name.split('contacto_')[1]
+
+    return {
+        fam_name(name): importlib.import_module(name)
+        for finder, name, ispkg
+        in pkgutil.iter_modules()
+        if name.startswith('contacto_')
+    }
+
+
 def run_plugins(storage, whitelist=[]):
     def wl_compliant(name):
         if len(whitelist) == 0:
             return True
-        _name = name.split('contacto_')[1]
-        return _name in whitelist
+        return name in whitelist
 
-    plugins = {
-        name: importlib.import_module(name)
-        for finder, name, ispkg
-        in pkgutil.iter_modules()
-        if name.startswith('contacto_') and wl_compliant(name)
-    }
+    plugins = get_plugins()
+    success, fail = [], []
 
-    for plugin in plugins.values():
+    for name, plugin in plugins.items():
+        if not wl_compliant(name):
+            continue
         if hasattr(plugin, 'plugin_init'):
-            plugin.plugin_init(storage)
+            if plugin.plugin_init(storage):
+                success.append(name)
+            else:
+                fail.append(name)
+    return success, fail
 
 
 def fmatch(needle, haystack):

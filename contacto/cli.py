@@ -3,7 +3,7 @@ import sys
 from .storage import Storage
 from .helpers import parse_refspec, parse_valspec
 from .helpers import DType, Scope, dump_lscope, refspec_scope
-from .helpers import print_warning, print_error
+from .helpers import print_warning, print_error, get_plugins, run_plugins
 from .view import View
 from .serial import Serial
 
@@ -194,6 +194,26 @@ def export_cmd(ctx, file):
 
     serial = Serial(ctx.obj['storage'])
     serial.export_yaml(file or sys.stdout) or sys.exit(1)
+
+
+@main_cmd.command(name='plugin')
+@click.option('-l', '--list', help='List available plugins', is_flag=True)
+@click.argument('whitelist', nargs=-1)
+@click.pass_context
+def plugin_cmd(ctx, list, whitelist):
+    """Run Contacto plugins, optionally specify which by name"""
+
+    if list:
+        click.echo(', '.join(get_plugins().keys()))
+        return
+
+    ok, nok = run_plugins(ctx.obj['storage'], whitelist)
+    s_ok = '' if len(ok) == 0 else f" ({', '.join(ok)})"
+    s_nok = '' if len(nok) == 0 else f" ({', '.join(nok)})"
+
+    click.echo(f"Plugin summary: {len(ok)} successful{s_ok}, {len(nok)} failed{s_nok}.")
+    if len(nok) > 0:
+        sys.exit(1)
 
 
 def main():
