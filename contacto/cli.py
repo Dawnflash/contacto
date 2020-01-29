@@ -1,73 +1,187 @@
 import click
+import sys
+from .storage import Storage
+from .helpers import parse_refspec, parse_valspec
+from .helpers import DType, Scope, dump_lscope, refspec_scope
+from .view import View
+from .serial import Serial
+
+
+def group_set(storage, gname):
+    return storage.get_group(gname) or \
+           storage.create_group_safe(gname) or sys.exit(1)
+
+
+def entity_set(storage, gname, ename, data, recursive):
+    ent = storage.get_entity(gname, ename)
+    if ent:
+        if data:
+            ent.thumbnail = data
+            ent.update_safe() or sys.exit(1)
+        return ent
+    if recursive:
+        grp = group_set(storage, gname)
+    else:
+        grp = storage.get_group(gname)
+        if not grp:
+            click.echo(f"Group {gname} does not exist.", file=sys.stderr)
+            sys.exit(1)
+    return grp.create_entity_safe(ename, data) or sys.exit(1)
+
+
+def validate_refspec(ctx, param, value):
+    try:
+        return parse_refspec(value)
+    except Exception as e:
+        raise click.BadParameter(str(e))
+
+
+def validate_scope(ctx, param, value):
+    return Scope.from_str(value)
 
 
 @click.group()
-def main_cmd(strategy, dry_run, is_async, config_auth, config_rules):
+@click.option('-o', '--open', 'dbname', type=click.Path(exists=True), required=True,
+              help='Path to storage file')
+@click.pass_context
+def main_cmd(ctx, dbname):
     """Contacto CLI: manage your contacts in the console."""
 
-    pass
+    ctx.ensure_object(dict)
+    ctx.obj['storage'] = Storage(dbname)
 
 
 @main_cmd.command(name='get')
 @click.option('-s', '--scope', help='Desired output scope.',
               type=click.Choice(['attr', 'ent', 'grp']),
-              default='attr', show_default=True)
-@click.option('-f', '--fuzzy', help='Refspec for fuzzy element matching.')
-@click.option('-v', '--value', help='Match text attributes containing value.')
-@click.option('-V', 'val_exact', help='Match exact attribute value (use with -v).', is_flag=True)
+              default='attr', show_default=True, callback=validate_scope)
+@click.option('-f', '--fuzzy', callback=validate_refspec,
+              help='Refspec for fuzzy element matching.')
+@click.option('-v', '--value', help='Match attributes by value TEXT.')
+@click.option('-V', 'val_fuzzy', is_flag=True,
+              help='Fuzzy match attributes by value (use with -v).')
+@click.option('-r', '--raw', is_flag=True,
+              help='Dump raw data. Full REFSPEC must be given.')
 @click.option('-y', '--yaml', help='Output data in YAML format.', is_flag=True)
-@click.argument('refspec', required=False)
-def get_cmd(scope, fuzzy, value, val_exact, yaml, refspec):
+@click.argument('refspec', callback=validate_refspec, required=False)
+@click.pass_context
+def get_cmd(ctx, scope, fuzzy, value, val_fuzzy, raw, yaml, refspec):
     """Fetch and print matching elements"""
 
-    pass
+    if val_fuzzy and not value:
+        click.echo('Warning: -V must be used with -v', file=sys.stderr)
+
+    view = View(ctx.obj['storage'])
+    view.set_index_filters(refspec)
+    view.set_name_filters(fuzzy)
+    view.set_attr_value_filter(value, val_fuzzy)
+    view.filter()
+
+    serial = Serial(view)
+    if yaml:
+        serial.export_yaml(sys.stdout, max_scope=scope)
+    else:
+        serial.dump(raw, dump_lscope(refspec), scope)
 
 
 @main_cmd.command(name='set')
 @click.option('-r', '--recursive', help='Create elements recursively.', is_flag=True)
-@click.option('-b', '--base64', help='VALUE contains base64-encoded binary data.', is_flag=True)
-@click.option('-i', '--stdin', help='read VALUE from stdin.', is_flag=True)
-@click.argument('refspec')
+@click.option('-b', '--binary', help='Read binary data (use with -i).', is_flag=True)
+@click.option('-i', '--stdin', help='Read VALUE from stdin.', is_flag=True)
+@click.argument('refspec', callback=validate_refspec)
 @click.argument('value', required=False)
-def set_cmd(recursive, base64, stdin, refspec, value):
+@click.pass_context
+def set_cmd(ctx, recursive, binary, stdin, refspec, value):
     """Create or update a REFSPEC-specified element.
 
     VALUE sets thumbnails of entities and values of attributes."""
 
-    pass
+    if binary and not stdin:
+        click.echo('Warning: -b must be used with -i', file=sys.stderr)
+
+    if not stdin:
+        vtype, vdata = parse_valspec(value)
+    elif not binary:
+        vtype, vdata = DType.TEXT, sys.stdin.read()
+    else:
+        vtype, vdata = DType.BIN, sys.stdin.buffer.read()
+
+    stor = ctx.obj['storage']
+    scope = refspec_scope(refspec)
+    if not scope:
+        click.echo('Fully-specified refspec required', file=sys.stderr)
+        sys.exit(1)
+
+    if scope == Scope.GROUP:
+        group_set(stor, refspec[0])
+    if scope == Scope.ENTITY:
+        entity_set(stor, *refspec[:2], vdata, recursive)
+    if scope == Scope.ATTRIBUTE:
+        if not vtype:
+            click.echo(f'Attributes require supplied value.', file=sys.stderr)
+            sys.exit(1)
+        attr = stor.get_attribute(*refspec)
+        if attr:
+            attr.type, attr.data = vtype, vdata
+            attr.update_safe() or sys.exit(1)
+            return
+        entp = refspec[:2]
+        if recursive:
+            ent = entity_set(stor, *entp, vdata, recursive)
+        else:
+            ent = stor.get_entity(*entp)
+            if not ent:
+                click.echo(f"Entity {'/'.join(entp)} does not exist.", file=sys.stderr)
+                sys.exit(1)
+        ent.create_attribute_safe(refspec[2], vtype, vdata) or sys.exit(1)
 
 
 @main_cmd.command(name='del')
-@click.argument('refspec')
-def del_cmd(refspec):
+@click.argument('refspec', callback=validate_refspec)
+@click.pass_context
+def del_cmd(ctx, refspec):
     """Delete a REFSPEC-specified element."""
 
-    pass
+    stor = ctx.obj['storage']
+    elem = stor.get_from_rspec(refspec) or sys.exit(1)
+    elem.delete_safe() or sys.exit(1)
 
 
 @main_cmd.command(name='merge')
-@click.argument('refspec_src')
-@click.argument('refspec_dst')
-def merge_cmd(refspec_src, refspec_dst):
+@click.argument('refspec_src', callback=validate_refspec)
+@click.argument('refspec_dst', callback=validate_refspec)
+@click.pass_context
+def merge_cmd(ctx, refspec_src, refspec_dst):
     """Merge entity/group specified by REFSPEC_SRC into REFSPEC_DST."""
 
-    pass
+    stor = ctx.obj['storage']
+    src = stor.get_from_rspec(refspec_src) or sys.exit(1)
+    dst = stor.get_from_rspec(refspec_dst) or sys.exit(1)
+
+    if type(src) != type(dst) or not hasattr(src, 'merge'):
+        click.echo('You can only merge 2 entities or 2 groups.', file=sys.stderr)
+        sys.exit(1)
+    dst.merge(src)
 
 
 @main_cmd.command(name='import')
 @click.argument('file', type=click.File('r'), required=False)
-def import_cmd(file):
+@click.pass_context
+def import_cmd(ctx, file):
     """Import YAML data from FILE or stdin."""
 
-    pass
+    serial = Serial(ctx.obj['storage'])
+    serial.import_yaml(file or sys.stdin) or sys.exit(1)
 
 
 @main_cmd.command(name='export')
 @click.argument('file', type=click.File('w'), required=False)
-def export_cmd(file):
+@click.pass_context
+def export_cmd(ctx, file):
     """Export YAML data to FILE or stdout. Similar to 'get -y'"""
 
-    pass
+    serial = Serial(ctx.obj['storage'])
+    serial.export_yaml(file or sys.stdout) or sys.exit(1)
 
 
 def main():
