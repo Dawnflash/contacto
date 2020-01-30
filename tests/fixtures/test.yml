@@ -1,0 +1,32 @@
+BareEntGrp:
+  BareEnt:
+BareGrp:
+Family:
+  Dad:
+    age: 45
+    catpic: REF:Family/Mom/catpic
+    thumbnail: REF:Family/Dad/catpic
+    real name: Matthew Logan
+    relationship: father
+    spouse: REF:Family/Mom
+    web: REF:Family/Mom/web
+  Mom:
+    occupation: michelin cook
+    real name: Anastasia Logan
+    web: https://github.com
+    catpic: FILE:<FIXTURES_PATH>/cat.jpg
+Friends:
+  Albatros:
+    aliases: theunspoken, ninja
+    url_bin: URL:file:<FIXTURES_PATH>/tinybin.dat
+    location: Las Vegas
+    relationship: friend
+  Nappo Bappo:
+    favorite food: tuna
+    bin_source: file:<FIXTURES_PATH>/tinybin.dat
+    relationship: special
+Main:
+  TestEntity:
+    Age: 25
+    Real Name: Bronislav Kafrovic
+    binaree_source*: file:<FIXTURES_PATH>/tinybin.dat
