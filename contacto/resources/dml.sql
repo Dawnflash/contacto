@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS entity (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     thumbnail BLOB,
-    group_id INTEGER NOT NULL REFERENCES "group(id)" ON DELETE CASCADE,
+    group_id INTEGER NOT NULL REFERENCES "group"(id) ON DELETE CASCADE,
     UNIQUE(group_id, name)
 );
 CREATE TABLE IF NOT EXISTS attribute (

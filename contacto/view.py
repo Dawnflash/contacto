@@ -30,10 +30,12 @@ class View:
 
 
     def set_name_filters(self, filters):
-        preds = [
-            (lambda x: fmatch(filt, x.name)) if filt else None
-            for filt in filters
-        ]
+        def sel(filt):
+            if filt:
+                return lambda x: fmatch(filt, x.name)
+            return None
+
+        preds = [sel(filt) for filt in filters]
         self.set_value_predicates(preds)
 
 
@@ -44,7 +46,9 @@ class View:
             dtype, val = x.get()
             if dtype is not DType.TEXT:
                 return False
-            return (fuzzy and fmatch(needle, val)) or (not fuzzy and needle == val)
+            if fuzzy:
+                return fmatch(needle, val)
+            return needle == val
 
         self.set_value_predicates((None, None, pred))
 
@@ -72,6 +76,7 @@ class View:
         # group index filter
         if ind_g:
             if ind_g not in iter_groups:
+                self.groups = {}
                 return
             iter_groups = {ind_g: iter_groups[ind_g]}
         for gname, group in iter_groups.items():
@@ -101,13 +106,15 @@ class View:
                     if val_a and not val_a(attr):
                         continue
                     attrs[aname] = copy.copy(attr)
-                if len(attrs) > 0:
+                nofilt = len(iter_attributes) == 0 and not val_a
+                if len(attrs) > 0 or nofilt:
                     ent = copy.copy(entity)
                     ent.attributes = attrs
                     for attr in attrs.values():
                         attr.parent = ent
                     ents[ename] = ent
-            if len(ents) > 0:
+            nofilt = len(iter_entities) == 0 and not (val_e or ind_a or val_a)
+            if len(ents) > 0 or nofilt:
                 grp = copy.copy(group)
                 grp.entities = ents
                 for ent in ents.values():

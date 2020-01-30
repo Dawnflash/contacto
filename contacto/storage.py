@@ -137,9 +137,11 @@ class Group(StorageElement):
 
 
     def delete(self):
+        for entity in self.entities.copy().values():
+            entity.delete()
         sql = 'DELETE FROM "group" WHERE id=?'
         self.get_conn().execute(sql, [self.id])
-        del self.parent.groups[self.name]
+        self.parent.groups.pop(self.name, None)
 
 
     def merge(self, other):
@@ -201,11 +203,13 @@ class Entity(StorageElement):
 
 
     def delete(self):
+        for attr in self.attributes.copy().values():
+            attr.delete()
         sql = 'DELETE FROM entity WHERE id=?'
         self.get_conn().execute(sql, [self.id])
-        del self.parent.entities[self.name]
+        self.parent.entities.pop(self.name)
         # delete refs pointing to me
-        for ref in self.refs:
+        for ref in self.refs.copy():
             ref.delete()
 
 
@@ -213,6 +217,10 @@ class Entity(StorageElement):
         if other.thumbnail and not self.thumbnail:
             self.thumbnail = other.thumbnail
             self.update()
+        # redirect all pointers to us
+        for attr in other.refs.copy():
+            attr.data = self
+            attr.update()
         for name, oattr in other.attributes.copy().items():
             if name in self.attributes:
                 self.attributes[name].merge(oattr)
@@ -305,12 +313,11 @@ class Attribute(StorageElement):
     def delete(self):
         sql = 'DELETE FROM attribute WHERE id=?'
         self.get_conn().execute(sql, [self.id])
-        del self.parent.attributes[self.name]
+        self.parent.attributes.pop(self.name, None)
         # unregister and delete refs pointing to me
         self.ref_unregister()
-        for ref in self.refs:
+        for ref in self.refs.copy():
             ref.delete()
-        self.refs.clear()
         self.__thumb_hook()
 
 
@@ -320,7 +327,7 @@ class Attribute(StorageElement):
         other.ref_unregister()
 
         # redirect all pointers to us
-        for attr in other.refs:
+        for attr in other.refs.copy():
             attr.data = self
             attr.update()
 
@@ -395,6 +402,7 @@ class Storage:
         # executor
         self.db_cur  = self.db_conn.cursor()
         self.create_db()
+        self.set_foreign_keys(True)
 
         # load everything from db
         self.reload()
@@ -402,6 +410,11 @@ class Storage:
 
     def __del__(self):
         self.db_conn.close()
+
+
+    def set_foreign_keys(self, on):
+        sql = f"PRAGMA foreign_keys = {'ON' if on else 'OFF'}"
+        self.db_conn.execute(sql)
 
 
     def reload(self):

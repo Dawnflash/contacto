@@ -26,7 +26,7 @@ def entity_set(storage, gname, ename, data, recursive):
         if not grp:
             print_error(f"Group {gname} does not exist.")
             sys.exit(1)
-    return grp.create_entity_safe(ename, data) or sys.exit(1)
+    return grp.create_entity_safe(ename) or sys.exit(1)
 
 
 def validate_refspec(ctx, param, value):
@@ -34,6 +34,13 @@ def validate_refspec(ctx, param, value):
         return parse_refspec(value)
     except Exception as e:
         raise click.BadParameter(str(e))
+
+
+def validate_full_refspec(ctx, param, value):
+    p_rspec = validate_refspec(ctx, param, value)
+    if refspec_scope(p_rspec):
+        return p_rspec
+    raise click.BadParameter('Fully-specified refspec required')
 
 
 def validate_scope(ctx, param, value):
@@ -89,7 +96,7 @@ def get_cmd(ctx, scope, fuzzy, value, val_fuzzy, raw, yaml, refspec):
 @click.option('-b', '--binary', help='Read binary data (use with -i).', is_flag=True)
 @click.option('-i', '--stdin', help='Read VALUE from stdin.', is_flag=True)
 @click.option('-R', '--rotate', help='Rotate attribute value.', is_flag=True)
-@click.argument('refspec', callback=validate_refspec)
+@click.argument('refspec', callback=validate_full_refspec)
 @click.argument('value', required=False)
 @click.pass_context
 def set_cmd(ctx, recursive, binary, stdin, rotate, refspec, value):
@@ -97,22 +104,17 @@ def set_cmd(ctx, recursive, binary, stdin, rotate, refspec, value):
 
     VALUE sets thumbnails of entities and values of attributes."""
 
-    stor = ctx.obj['storage']
-    scope = refspec_scope(refspec)
-    if not scope:
-        print_error('Fully-specified refspec required')
-        sys.exit(1)
-
     if binary and not stdin:
         print_warning('Warning: -b must be used with -i')
 
+    stor = ctx.obj['storage']
     if not stdin:
         try:
             vtype, vdata = parse_valspec(value)
         except Exception as e:
             print_error(e)
             sys.exit(1)
-        if vtype.is_xref():
+        if vtype and vtype.is_xref():
             vdata = stor.get_from_rspec(vdata)
             if not vdata:
                 print_error("Invalid reference")
@@ -122,6 +124,7 @@ def set_cmd(ctx, recursive, binary, stdin, rotate, refspec, value):
     else:
         vtype, vdata = DType.BIN, sys.stdin.buffer.read()
 
+    scope = refspec_scope(refspec)
     if scope == Scope.GROUP:
         group_set(stor, refspec[0])
     if scope == Scope.ENTITY:
@@ -149,7 +152,7 @@ def set_cmd(ctx, recursive, binary, stdin, rotate, refspec, value):
 
 
 @main_cmd.command(name='del')
-@click.argument('refspec', callback=validate_refspec)
+@click.argument('refspec', callback=validate_full_refspec)
 @click.pass_context
 def del_cmd(ctx, refspec):
     """Delete a REFSPEC-specified element."""
@@ -160,8 +163,8 @@ def del_cmd(ctx, refspec):
 
 
 @main_cmd.command(name='merge')
-@click.argument('refspec_src', callback=validate_refspec)
-@click.argument('refspec_dst', callback=validate_refspec)
+@click.argument('refspec_src', callback=validate_full_refspec)
+@click.argument('refspec_dst', callback=validate_full_refspec)
 @click.pass_context
 def merge_cmd(ctx, refspec_src, refspec_dst):
     """Merge entity/group specified by REFSPEC_SRC into REFSPEC_DST."""
