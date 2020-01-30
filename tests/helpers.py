@@ -28,14 +28,16 @@ def mkyaml():
 
 def mkdb(name):
     rmdb()
-    stor = Storage(db)
+    stor = Storage(str(db))
     ser = Serial(stor)
     with open(yml_fixture(name), 'r') as f:
         ser.import_yaml(f)
 
 
 def rmdb():
-    fixture(db).unlink(missing_ok=True)
+    path = fixture(db)
+    if os.path.exists(path):
+        path.unlink()
 
 
 def mkstor():
@@ -44,7 +46,9 @@ def mkstor():
 
 def cleanup():
     for yml in yamls:
-        yml_fixture(yml).unlink(missing_ok=True)
+        path = yml_fixture(yml)
+        if os.path.exists(path):
+            path.unlink()
     rmdb()
 
 
