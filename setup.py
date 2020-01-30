@@ -6,7 +6,7 @@ with open("README.rst", "r") as f:
 
 setup(
     name='contacto',
-    version='0.0.1',
+    version='0.1',
     description='A robust contact manager for social engineering.',
     long_description=long_description,
     long_description_content_type="text/x-rst",
