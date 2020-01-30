@@ -2,32 +2,28 @@ import copy
 from .helpers import DType, fmatch
 from .storage import Group, Entity, Attribute
 
+
 class View:
     """A read-only representation of a Storage slice"""
-
 
     def __init__(self, storage):
         self.source = storage.groups
         self.reset()
-
 
     def reset(self):
         self.index_filters = [None, None, None]
         self.value_predicates = [None, None, None]
         self.groups = self.source
 
-
     def empty(self):
         return self.index_filters == [None, None, None] and \
                self.value_predicates == [None, None, None]
-
 
     def set_index_filters(self, filters):
         self.index_filters = [
             new_f or old_f
             for new_f, old_f in zip(filters, self.index_filters)
         ]
-
 
     def set_name_filters(self, filters):
         def sel(filt):
@@ -38,10 +34,10 @@ class View:
         preds = [sel(filt) for filt in filters]
         self.set_value_predicates(preds)
 
-
     def set_attr_value_filter(self, needle, fuzzy):
         if not needle:
             return
+
         def pred(x):
             dtype, val = x.get()
             if dtype is not DType.TEXT:
@@ -51,7 +47,6 @@ class View:
             return needle == val
 
         self.set_value_predicates((None, None, pred))
-
 
     def set_value_predicates(self, preds):
         def join(new_p, old_p):
@@ -64,12 +59,11 @@ class View:
             for new_p, old_p in zip(preds, self.value_predicates)
         ]
 
-
     def filter(self):
         if self.empty():
             return
-        ind_g, ind_e, ind_a = self.index_filters # strings
-        val_g, val_e, val_a = self.value_predicates # predicates
+        ind_g, ind_e, ind_a = self.index_filters  # strings
+        val_g, val_e, val_a = self.value_predicates  # predicates
 
         grps = {}
         iter_groups = self.groups
@@ -121,6 +115,3 @@ class View:
                     ent.parent = grp
                 grps[gname] = grp
         self.groups = grps
-
-
-

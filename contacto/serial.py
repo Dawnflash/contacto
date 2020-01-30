@@ -1,15 +1,36 @@
+"""Serialization features: import, export, human-readable dumping
+"""
+
 import yaml
 import click
 import os
 from urllib.request import urlopen
 from .helpers import DType, Scope, parse_valspec, attr_val_str, print_error
 
+
 class Serial:
+    """Serialization handler, accepts a data storage
+    """
     def __init__(self, storage):
+        """Constructor, save provided storage
+        """
         self.storage = storage
 
-
     def export_yaml(self, file, max_scope=Scope.ATTRIBUTE, max_bin_size=0):
+        """Export storage in YAML format into a file.
+        Maximum scope may be provided to cut away attributes or even entities.
+        If maximum binary size is set, binary data bigger than this limit will
+        be dumped into files in the dump file's directory and linked by refs.
+
+        :param file: file to dump to
+        :type  file: class:`io.TextIOWrapper`
+        :param max_scope: rightmost tree scope to export
+        :type  max_scope: class:`contacto.helpers.Scope`, optional
+        :param max_bin_size: maximum binary data size to inline
+        :type  max_bin_size: int, optional
+        :return: success
+        :rtype:  bool
+        """
         data = {}
         try:
             # group scope
@@ -30,8 +51,8 @@ class Serial:
                         if attribute.type.is_xref():
                             value = f"REF:{value}"
                         elif (attribute.type is DType.BIN
-                            and max_bin_size > 0
-                            and len(value) > max_bin_size):
+                              and max_bin_size > 0
+                              and len(value) > max_bin_size):
                             # dump data to file and reference it
                             dirp = os.path.dirname(os.path.realpath(file.name))
                             fname = os.path.join(dirp, f"{attribute.id}.dat")
@@ -46,14 +67,32 @@ class Serial:
             return False
         return True
 
-
     def dump(self, direct=False, lscope=Scope.GROUP, rscope=Scope.ATTRIBUTE):
+        """Dump storage in a human-readable form to stdout.
+        This dump type may be scoped from the left if a specific element
+        is directly requested (lscope), such as with a G/E refspec.
+
+        Right scope (rscope) cuts data from the right (starting with attrs.).
+        It is possible to dump entities only (<E, E>), entities and attributes
+        (<E, A>) or just attribute values (<AV, A>)...
+
+        Passing the direct flag causes attributes to be printed without names.
+        Desirable when printing a single-scoped attr's value (<AV, A>).
+
+        :param direct: do not print attribute names
+        :type  direct: bool, optional
+        :param lscope: leftmost tree scope to export
+        :type  lscope: class:`contacto.helpers.Scope`, optional
+        :param rscope: rightmost tree scope to export
+        :type  rscope: class:`contacto.helpers.Scope`, optional
+        """
         if rscope < Scope.ATTRIBUTE and lscope > rscope:
             lscope = rscope
         # don't output directly unless a direct scope is used
         direct &= lscope is Scope.ATTR_VAL
 
         scope = 0
+
         def prefix():
             return '' if scope == 0 else f"{(scope - 1) * '  '}- "
 
@@ -86,8 +125,14 @@ class Serial:
             if lscope <= Scope.GROUP:
                 scope -= 1
 
-
     def import_yaml(self, file):
+        """Import YAML data from a file into the storage
+
+        :param file: YAML file
+        :type  file: class:`io.TextIOWrapper`
+        :return: success
+        :rtype:  bool
+        """
         data = None
         try:
             data = yaml.safe_load(file)
@@ -105,8 +150,9 @@ class Serial:
             return False
         return True
 
-
     def __import_yamldata(self, data):
+        """Import extracted (and parsed) YAML data
+        """
         xref_queue = []
         for gname, d_group in data.items():
             group = self.storage.get_group(gname) or \
@@ -124,7 +170,7 @@ class Serial:
                     isXREF = atype.is_xref()
                     if isXREF:
                         ref_meta = atype, adata
-                        atype, adata = DType.TEXT, '<XREF>' # bypass XREFs
+                        atype, adata = DType.TEXT, '<XREF>'  # bypass XREFs
                     attr = self.storage.get_attribute(gname, ename, aname)
                     if attr is None:
                         attr = entity.create_attribute(aname, atype, adata)
@@ -140,8 +186,9 @@ class Serial:
             attr.data = self.storage.get_from_rspec(ref_data)
             attr.update()
 
-
     def __parse_yaml_attr(self, d_attr):
+        """Infer attribute value and type from YAML-parsed data
+        """
         if type(d_attr) is bytes:
             return DType.BIN, d_attr
         if type(d_attr) is str:

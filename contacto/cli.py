@@ -1,3 +1,6 @@
+"""CLI interface using Click
+"""
+
 import click
 import sys
 from .storage import Storage
@@ -9,11 +12,35 @@ from .serial import Serial
 
 
 def group_set(storage, gname):
+    """Create or update a group
+
+    :param storage: used storage
+    :type  storage: class:`contacto.storage.Storage`
+    :param gname: group name
+    :type  gname: str
+    :return: created group
+    :rtype:  class:`contacto.storage.Group`
+    """
     return storage.get_group(gname) or \
-           storage.create_group_safe(gname) or sys.exit(1)
+        storage.create_group_safe(gname) or sys.exit(1)
 
 
 def entity_set(storage, gname, ename, data, recursive):
+    """Create or update a group
+
+    :param storage: used storage
+    :type  storage: class:`contacto.storage.Storage`
+    :param gname: group name
+    :type  gname: str
+    :param ename: entity name
+    :type  ename: str
+    :param data: parsed user-provided data
+    :type  data: Union[str, bytes, tuple]
+    :param recursive: create group if non-existent
+    :type  recursive: bool
+    :return: created entity
+    :rtype:  class:`contacto.storage.Entity`
+    """
     ent = storage.get_entity(gname, ename)
     if ent:
         if data:
@@ -30,6 +57,17 @@ def entity_set(storage, gname, ename, data, recursive):
 
 
 def validate_refspec(ctx, param, value):
+    """Validate a generic refspec (without restrictions)
+
+    :param ctx: Click context
+    :type  ctx: class:`click.Context`
+    :param param: Click params
+    :type  param: dict
+    :param value: refspec
+    :type  value: str
+    :return: parsed refspec
+    :rtype:  list
+    """
     try:
         return parse_refspec(value)
     except Exception as e:
@@ -37,19 +75,26 @@ def validate_refspec(ctx, param, value):
 
 
 def validate_full_refspec(ctx, param, value):
+    """Validate a full refspec (specified from the left)
+
+    :param ctx: Click context
+    :type  ctx: class:`click.Context`
+    :param param: Click params
+    :type  param: dict
+    :param value: refspec
+    :type  value: str
+    :return: parsed refspec
+    :rtype:  list
+    """
     p_rspec = validate_refspec(ctx, param, value)
     if refspec_scope(p_rspec):
         return p_rspec
     raise click.BadParameter('Fully-specified refspec required')
 
 
-def validate_scope(ctx, param, value):
-    return Scope.from_str(value)
-
-
 @click.group()
-@click.option('-o', '--open', 'dbname', type=click.Path(exists=False), required=True,
-              help='Path to storage file')
+@click.option('-o', '--open', 'dbname', type=click.Path(exists=False),
+              required=True, help='Path to storage file')
 @click.pass_context
 def main_cmd(ctx, dbname):
     """Contacto CLI: manage your contacts in the console."""
@@ -61,7 +106,7 @@ def main_cmd(ctx, dbname):
 @main_cmd.command(name='get')
 @click.option('-s', '--scope', help='Desired output scope.',
               type=click.Choice(['attr', 'ent', 'grp']),
-              default='attr', show_default=True, callback=validate_scope)
+              default='attr', show_default=True)
 @click.option('-f', '--fuzzy', callback=validate_refspec,
               help='Refspec for fuzzy element matching.')
 @click.option('-v', '--value', help='Match attributes by value TEXT.')
@@ -75,6 +120,7 @@ def main_cmd(ctx, dbname):
 def get_cmd(ctx, scope, fuzzy, value, val_fuzzy, raw, yaml, refspec):
     """Fetch and print matching elements"""
 
+    scope = Scope.from_str(scope)
     if val_fuzzy and not value:
         print_warning('-V must be used with -v')
 
@@ -92,8 +138,10 @@ def get_cmd(ctx, scope, fuzzy, value, val_fuzzy, raw, yaml, refspec):
 
 
 @main_cmd.command(name='set')
-@click.option('-r', '--recursive', help='Create elements recursively.', is_flag=True)
-@click.option('-b', '--binary', help='Read binary data (use with -i).', is_flag=True)
+@click.option('-r', '--recursive',
+              help='Create elements recursively.', is_flag=True)
+@click.option('-b', '--binary',
+              help='Read binary data (use with -i).', is_flag=True)
 @click.option('-i', '--stdin', help='Read VALUE from stdin.', is_flag=True)
 @click.option('-R', '--rotate', help='Rotate attribute value.', is_flag=True)
 @click.argument('refspec', callback=validate_full_refspec)
@@ -214,7 +262,8 @@ def plugin_cmd(ctx, list, whitelist):
     s_ok = '' if len(ok) == 0 else f" ({', '.join(ok)})"
     s_nok = '' if len(nok) == 0 else f" ({', '.join(nok)})"
 
-    click.echo(f"Plugin summary: {len(ok)} successful{s_ok}, {len(nok)} failed{s_nok}.")
+    click.echo(f"Plugin summary: {len(ok)} successful{s_ok}, \
+               {len(nok)} failed{s_nok}.")
     if len(nok) > 0:
         sys.exit(1)
 
