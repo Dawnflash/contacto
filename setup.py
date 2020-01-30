@@ -35,10 +35,8 @@ setup(
         'Environment :: X11 Applications :: Qt'
     ],
     install_requires=['PyQt5', 'click', 'pyyaml', 'pillow'],
-    setup_requires=['pytest-runner'],
-    tests_require=['pytest', 'click'],
     extras_require={
-        'dev': ['sphinx'],
+        'dev': ['sphinx', 'pytest'],
     },
     zip_safe=False,
 )
