@@ -9,6 +9,10 @@ Contacto
 .. image:: https://circleci.com/gh/Dawnflash/contacto.svg?style=shield&circle-token=6bac0991f94ce79de3df4510ec4e11258c29531f
     :target: https://circleci.com/gh/Dawnflash/contacto
 
+.. image:: https://readthedocs.org/projects/contacto/badge/?version=latest
+    :target: https://contacto.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents

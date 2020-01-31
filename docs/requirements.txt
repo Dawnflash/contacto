@@ -1,0 +1,4 @@
+Click==7.0
+Pillow==7.0.0
+PyYAML==5.3
+Sphinx==2.3.1
