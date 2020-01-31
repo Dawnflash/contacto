@@ -25,7 +25,7 @@ def group_set(storage, gname):
         storage.create_group_safe(gname) or sys.exit(1)
 
 
-def entity_set(storage, gname, ename, data, recursive):
+def entity_set(storage, gname, ename, recursive):
     """Creates or update an entity.
 
     :param storage: used storage
@@ -34,8 +34,6 @@ def entity_set(storage, gname, ename, data, recursive):
     :type  gname: str
     :param ename: entity name
     :type  ename: str
-    :param data: parsed user-provided data
-    :type  data: Union[str, bytes, tuple]
     :param recursive: create group if non-existent
     :type  recursive: bool
     :return: created entity
@@ -43,8 +41,6 @@ def entity_set(storage, gname, ename, data, recursive):
     """
     ent = storage.get_entity(gname, ename)
     if ent:
-        if data:
-            print_warning('Set a "thumbnail" attribute to set thumbnail.')
         return ent
     if recursive:
         grp = group_set(storage, gname)
@@ -176,13 +172,15 @@ def set_cmd(ctx, recursive, binary, stdin, rotate, refspec, value):
     if scope == Scope.GROUP:
         group_set(stor, refspec[0])
     if scope == Scope.ENTITY:
-        entity_set(stor, *refspec[:2], vdata, recursive)
+        entity_set(stor, *refspec[:2], recursive)
     if scope == Scope.ATTRIBUTE:
         if not vtype:
             print_error(f'Attributes require supplied value.')
             sys.exit(1)
         attr = stor.get_attribute(*refspec)
-        if attr and (vtype != attr.type or vdata != attr.data):
+        if attr:
+            if vtype == attr.type or vdata == attr.data:
+                return
             if rotate:
                 attr.rotate_safe() or sys.exit(1)
             attr.type, attr.data = vtype, vdata
@@ -190,7 +188,7 @@ def set_cmd(ctx, recursive, binary, stdin, rotate, refspec, value):
             return
         entp = refspec[:2]
         if recursive:
-            ent = entity_set(stor, *entp, vdata, recursive)
+            ent = entity_set(stor, *entp, recursive)
         else:
             ent = stor.get_entity(*entp)
             if not ent:
