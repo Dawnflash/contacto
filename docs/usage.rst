@@ -24,20 +24,16 @@ See :ref:`section_cli_examples` for various CLI examples.
 GUI
 ===
 
-TBD
+For now, GUI is a simple read-only Qt demonstration.
+It can only display the contact tree and perform import/export.
 
-This feature is planned.
+Image display, sorting, binary data exporting and R/W support
+are among the planned features for the future.
 
-Despite a read-only GUI being planned in the original assignment,
-I deemed improving core functionality a higher priority task.
-
-Planned features
-----------------
-
-Contacto has a Qt GUI displaying the contact hierarchy.
-
-You can invoke it using the ``qcontacto`` entrypoint:
+You can invoke it using the ``qcontacto`` entrypoint or by invoking the
+module directly:
 
 .. code:: bash
 
     $ qcontacto [<database>]
+    $ python -m contacto.gui [<database>]

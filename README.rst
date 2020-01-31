@@ -26,7 +26,7 @@ Contacto is targeted at developers and has a simple interface:
 Links
 -----
 
-* `Documentation <https://ghia-zahumada.readthedocs.io/en/latest/>`_
+* `Documentation <https://contacto.readthedocs.io/en/latest/>`_
 * `PyPI project <https://pypi.org/project/contacto/>`_
 * `Project assignment <ASSIGNMENT.rst>`_
 
@@ -43,7 +43,12 @@ Operate the manager from the command line.
 GUI
 ---
 
-TBD. Coming soon!
+Test the simple read-only GUI.
+
+.. code:: bash
+
+    $ qcontacto [<database>]
+    $ python -m contacto.gui [<database>]
 
 Building docs
 -------------

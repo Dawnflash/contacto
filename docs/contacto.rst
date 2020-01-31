@@ -18,14 +18,6 @@ Module contacto.storage
     :undoc-members:
     :show-inheritance:
 
-Module contacto.cli
--------------------
-
-.. automodule:: contacto.cli
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 Module contacto.serial
 ----------------------
 
@@ -46,6 +38,22 @@ Module contacto.helpers
 -----------------------
 
 .. automodule:: contacto.helpers
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+Module contacto.cli
+-------------------
+
+.. automodule:: contacto.cli
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+Module contacto.gui
+-------------------
+
+.. automodule:: contacto.gui
     :members:
     :undoc-members:
     :show-inheritance:

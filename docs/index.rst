@@ -32,12 +32,17 @@ Introduction
 **Contacto** is a somewhat different take on contact managers.
 It focuses on simplicity, modularity and expressiveness.
 
-It is intended for use by tech-savvy people who need order in the sheer ocean of virtual entities they meet daily.
+It is intended for use by tech-savvy people who need order in the sheer ocean
+of virtual entities they meet daily.
 
-With the sea of services and accounts, people tend to develop various aliases which make it harder to track who is who.
-Contacto helps with this problem by providing cross-referencing mechanics and robust search to accumulate and process identity info.
+With the sea of services and accounts, people tend to develop various aliases
+which make it harder to track who is who.
+Contacto helps with this problem by providing cross-referencing mechanics
+and robust search to accumulate and process identity info.
 
-Contacto comes with a :ref:`section_cli` interface suitable for script automation and a more user-friendly :ref:`section_gui` (TBD).
+Contacto comes with a :ref:`section_cli` interface suitable for script
+automation and a more user-friendly :ref:`section_gui`
+(feature-limited for now).
 
 Why Contacto?
 #############
@@ -70,25 +75,13 @@ Alternatively you can clone the repository and run
 
     $ pip install .
 
-.. _assignment_strategy:
-
-Assignment strategy
-###################
-
-GHIA supports 3 assignment strategies:
-
-* **append**: add matching users to existing assignees
-* **set**: only process unassigned issues
-* **change**: replace existing assignees with matching users
-
-The default strategy is always ``append``.
-
 .. _building_docs:
 
 Building docs
 #############
 
-Install the package with the ``dev`` extras. Docs are in the ``docs`` directory.
+Install the package with the ``dev`` extras.
+Docs are in the ``docs`` directory.
 
 .. code:: bash
 
@@ -99,7 +92,7 @@ Install the package with the ``dev`` extras. Docs are in the ``docs`` directory.
 License
 #######
 
-GHIA is distributed under the GNU GPLv3 license, see LICENSE.
+Contacto is distributed under the GNU GPLv3 license, see LICENSE.
 
 .. * :ref:`genindex`
 .. * :ref:`modindex`
