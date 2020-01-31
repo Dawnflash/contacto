@@ -25,6 +25,11 @@ txtsrc_id = '_textsource'
 
 
 def plugin_init(storage):
+    """Plugin entry-point
+
+    :param storage: Storage object
+    :type storage:  class:`contacto.storage.Storage`
+    """
     for entity, attrs in attr_filter(storage.groups):
         try:
             with entity.get_conn():
@@ -39,6 +44,13 @@ def plugin_init(storage):
 
 # yields attribute data per entity
 def attr_filter(groups):
+    """Generate source identifier attributes
+
+    Produces an entity and its attributes to work on
+
+    :param groups: Groups to traverse
+    :type groups:  dict
+    """
     for group in groups.values():
         for entity in group.entities.values():
             data = []
@@ -66,6 +78,17 @@ def attr_filter(groups):
 
 
 def attr_process(attribute, name, text, history):
+    """Process a source indentifier attribute
+
+    :param attribute: source tracking attribute
+    :type attribute: class:`contacto.storage.Attribute`
+    :param name: name of the target attribute
+    :type name:  str
+    :param text: True if the source provides TEXT data
+    :type  text: bool
+    :param history: True if target attribute should be rotated
+    :type history:  bool
+    """
     ent = attribute.parent
     mode = 'r' if text else 'rb'
     dtype = DType.TEXT if text else DType.BIN
