@@ -1,4 +1,4 @@
-"""Support structures and functions
+"""Support structures and functions.
 """
 
 from enum import IntEnum
@@ -12,7 +12,7 @@ import click
 
 
 class DType(IntEnum):
-    """Attribute data types
+    """Attribute data types.
     """
     TEXT = 1,
     BIN = 2,
@@ -20,13 +20,13 @@ class DType(IntEnum):
     EXREF = 4
 
     def is_xref(self):
-        """True if the data type is a reference
+        """True if the data type is a reference.
         """
         return self is self.AXREF or self is self.EXREF
 
 
 class Scope(IntEnum):
-    """Level in the contact hierarchy
+    """Level in the contact hierarchy.
     """
     GROUP = 1,
     ENTITY = 2,
@@ -35,7 +35,7 @@ class Scope(IntEnum):
 
     @classmethod
     def from_str(cls, s):
-        """Creates scope from string
+        """Creates scope from string.
         """
         if s == 'grp':
             return cls.GROUP
@@ -47,7 +47,7 @@ class Scope(IntEnum):
 
 
 def bytes_to_attrdata(dtype, bin_data):
-    """Parses attribute data from its binary-packed form
+    """Parses attribute data from its binary-packed form.
 
     :param dtype: data type
     :type  dtype: class:`contacto.helpers.DType`
@@ -64,7 +64,7 @@ def bytes_to_attrdata(dtype, bin_data):
 
 
 def attrdata_to_bytes(dtype, attr_data):
-    """Packs attribute data into a binary form (for database storage)
+    """Packs attribute data into a binary form (for database storage).
 
     :param dtype: data type
     :type  dtype: class:`contacto.helpers.DType`
@@ -81,8 +81,10 @@ def attrdata_to_bytes(dtype, attr_data):
 
 
 def parse_refspec(rspec):
-    """Parse a generic text refspec into its tuple form
-    A generic refspec may have any parts omitted as long as it has at most 3
+    """Parses a generic text refspec into its tuple form.
+
+    A generic refspec may have any parts omitted as long as it has at most 3.
+
     Therefore /E/, G//A, //A, G/E/A are all valid refspecs
     Omitted parts are replaced with `None`
 
@@ -92,7 +94,7 @@ def parse_refspec(rspec):
     :rtype:  tuple
     """
     if not rspec:
-        return [None, None, None]
+        return None, None, None
     toks = rspec.split('/')
     ln = len(toks)
     if ln > 3:
@@ -100,13 +102,14 @@ def parse_refspec(rspec):
     toks = [None if tok == '' else tok for tok in toks]
     for _ in range(3 - ln):
         toks.append(None)
-    return toks
+    return tuple(toks)
 
 
 # GROUP/ENTITY/ATTR -> [GROUP, ENTITY, ATTR]
 # REFSPEC -> REFERENCE
 def parse_ref(rspec):
-    """Parse a refspec into a reference and its type (entity or attribute)
+    """Parse a refspec into a reference and its type (entity or attribute).
+
     Requires a fully-specified refspec: G/E or G/E/A
 
     :param rspec: text refspec
@@ -125,7 +128,7 @@ def parse_ref(rspec):
 
 
 def get_plugins():
-    """Uses pkgutil to find plugins among top-level modules
+    """Uses pkgutil to find plugins among top-level modules.
 
     :return: found plugins
     :rtype:  dict
@@ -142,7 +145,7 @@ def get_plugins():
 
 
 def run_plugins(storage, whitelist=[]):
-    """Runs found and selected plugins
+    """Runs found and selected plugins.
 
     :param storage: used storage
     :type  storage: class:`contacto.storage.Storage`
@@ -171,13 +174,14 @@ def run_plugins(storage, whitelist=[]):
 
 
 def fmatch(needle, haystack):
-    """A case-insensitive substring search
+    """A case-insensitive substring search.
     """
     return needle.casefold() in haystack.casefold()
 
 
 def dump_lscope(index_filters):
-    """Leftmost tree scope to apply when dumping contacts
+    """Leftmost tree scope to apply when dumping contacts.
+
     This corresponds to the leftmost directly specified element
 
     :param index_filters: parsed refspec
@@ -195,8 +199,10 @@ def dump_lscope(index_filters):
 
 
 def refspec_scope(p_rspec):
-    """The actual tree scope a refspec directly represents
-    A not-fully-specified scope such as /E/ represents nothing
+    """The actual tree (depth) scope a refspec directly represents.
+
+    A not-fully-specified scope such as /E/ represents nothing.
+
     Fully-specified scopes such as G, G/E and G/E/A do.
 
     :param p_rspec: parsed refspec
@@ -215,7 +221,7 @@ def refspec_scope(p_rspec):
 
 
 def attr_val_str(attr, direct):
-    """A human-readable representation of attribute data
+    """A human-readable representation of attribute data.
 
     :param attr: contact attribute
     :type  attr: class:`contacto.storage.Attribute`
@@ -240,7 +246,7 @@ def attr_val_str(attr, direct):
 
 
 def size_str(blob):
-    """Gets binary data size in human-readable units
+    """Gets binary data size in human-readable units.
 
     :param blob: binary data
     :type  blob: bytes
@@ -259,7 +265,7 @@ def size_str(blob):
 
 
 def validate_img(data):
-    """Check if data are an image
+    """Checks if data are an image.
 
     :param data: binary data
     :type  blob: bytes
@@ -276,7 +282,7 @@ def validate_img(data):
 
 
 def parse_valspec(value):
-    """Parses an attribute value specifier (used in data input/import)
+    """Parses an attribute value specifier (used in data input/import).
 
     :param value: value specifier
     :type  value: str
@@ -300,7 +306,7 @@ def parse_valspec(value):
 
 
 def print_error(err):
-    """Prints a formatted error message to stderr
+    """Prints a formatted error message to stderr.
     """
     click.echo("{}: {}".format(
         click.style("ERROR", fg='red', bold=True),
@@ -309,7 +315,7 @@ def print_error(err):
 
 
 def print_warning(warn):
-    """Prints a formatted warning message to stderr
+    """Prints a formatted warning message to stderr.
     """
     click.echo("{}: {}".format(
         click.style("WARN", fg='yellow', bold=True),

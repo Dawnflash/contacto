@@ -7,7 +7,7 @@ def test_refspec_parse():
     with pytest.raises(Exception):
         hlp.parse_refspec('///')
         hlp.parse_refspec('/Group/Entity/Attribute')
-    assert hlp.parse_refspec('Group') == ['Group', None, None]
+    assert hlp.parse_refspec('Group') == ('Group', None, None)
 
 
 def test_ref_parse():
@@ -25,7 +25,7 @@ def test_valspec_parse():
     t, d = hlp.parse_valspec(f"URL:file:{fix}")
     assert t == hlp.DType.BIN and d == fix.read_bytes()
     t, d = hlp.parse_valspec("REF:G/E/A")
-    assert t == hlp.DType.AXREF and d == ['G', 'E', 'A']
+    assert t == hlp.DType.AXREF and d == ('G', 'E', 'A')
     with pytest.raises(Exception):
         hlp.parse_valspec("REF:Group/Entity//")
         hlp.parse_valspec("REF:Group")

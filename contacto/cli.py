@@ -1,4 +1,4 @@
-"""CLI interface using Click
+"""CLI interface using Click.
 """
 
 import click
@@ -12,7 +12,7 @@ from .serial import Serial
 
 
 def group_set(storage, gname):
-    """Create or update a group
+    """Creates or update a group.
 
     :param storage: used storage
     :type  storage: class:`contacto.storage.Storage`
@@ -26,7 +26,7 @@ def group_set(storage, gname):
 
 
 def entity_set(storage, gname, ename, data, recursive):
-    """Create or update a group
+    """Creates or update an entity.
 
     :param storage: used storage
     :type  storage: class:`contacto.storage.Storage`
@@ -57,7 +57,7 @@ def entity_set(storage, gname, ename, data, recursive):
 
 
 def validate_refspec(ctx, param, value):
-    """Validate a generic refspec (without restrictions)
+    """Validates a generic refspec (without restrictions).
 
     :param ctx: Click context
     :type  ctx: class:`click.Context`
@@ -75,7 +75,7 @@ def validate_refspec(ctx, param, value):
 
 
 def validate_full_refspec(ctx, param, value):
-    """Validate a full refspec (specified from the left)
+    """Validates a full refspec (specified from the left).
 
     :param ctx: Click context
     :type  ctx: class:`click.Context`

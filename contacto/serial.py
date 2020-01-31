@@ -1,4 +1,4 @@
-"""Serialization features: import, export, human-readable dumping
+"""Serialization features: import, export, human-readable dumping.
 """
 
 import yaml
@@ -9,7 +9,7 @@ from .helpers import DType, Scope, parse_valspec, attr_val_str, print_error
 
 
 class Serial:
-    """Serialization handler, accepts a data storage
+    """Serialization handler, accepts a data storage.
     """
     def __init__(self, storage):
         """Constructor, save provided storage
@@ -17,7 +17,8 @@ class Serial:
         self.storage = storage
 
     def export_yaml(self, file, max_scope=Scope.ATTRIBUTE, max_bin_size=0):
-        """Export storage in YAML format into a file.
+        """Exports storage in YAML format into a file.
+
         Maximum scope may be provided to cut away attributes or even entities.
         If maximum binary size is set, binary data bigger than this limit will
         be dumped into files in the dump file's directory and linked by refs.
@@ -68,7 +69,8 @@ class Serial:
         return True
 
     def dump(self, direct=False, lscope=Scope.GROUP, rscope=Scope.ATTRIBUTE):
-        """Dump storage in a human-readable form to stdout.
+        """Dumps storage in a human-readable form to stdout.
+
         This dump type may be scoped from the left if a specific element
         is directly requested (lscope), such as with a G/E refspec.
 
@@ -126,7 +128,7 @@ class Serial:
                 scope -= 1
 
     def import_yaml(self, file):
-        """Import YAML data from a file into the storage
+        """Imports YAML data from a file into the storage.
 
         :param file: YAML file
         :type  file: class:`io.TextIOWrapper`
@@ -151,7 +153,7 @@ class Serial:
         return True
 
     def __import_yamldata(self, data):
-        """Import extracted (and parsed) YAML data
+        """Imports extracted (and parsed) YAML data.
         """
         xref_queue = []
         for gname, d_group in data.items():
@@ -187,7 +189,7 @@ class Serial:
             attr.update()
 
     def __parse_yaml_attr(self, d_attr):
-        """Infer attribute value and type from YAML-parsed data
+        """Infers attribute value and type from YAML-parsed data.
         """
         if type(d_attr) is bytes:
             return DType.BIN, d_attr

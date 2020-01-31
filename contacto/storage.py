@@ -1,4 +1,5 @@
 """The data layer containing all contact data.
+
 Contains objects forming the contact hierarchy: Group, Entity, Attribute; and
 the top-most storage container, Storage.
 
@@ -8,7 +9,7 @@ The tree members have parent references towards the root, which wraps
 around an SQLite database connection.
 
 Storage manipulation is transactional. For all transformations a safe
-variant is provided "<manip>_safe", which handles a single transaction.
+variant is provided, `<transform>_safe`, which handles a single transaction.
 Unsafe transformations should be wrapped in a transaction manually.
 """
 import sqlite3
@@ -29,7 +30,7 @@ class StorageElement(ABC):
     """
 
     def __init__(self, parent, name):
-        """Construct a tree element from a name and a parent element
+        """Constructs a tree element from a name and a parent element.
         """
         super().__init__()
         self.parent = parent
@@ -41,38 +42,40 @@ class StorageElement(ABC):
         self.name = name
 
     def __str__(self):
-        """String representation using scoped name = element refspec
+        """String representation using scoped name (element refspec).
         """
         return f"{self.parent}/{self.name}"
 
     @abstractmethod
     def read(self):
-        """Load all element data from the database
+        """Loads all element data from the database.
         """
         pass
 
     @abstractmethod
     def update(self):
-        """Save all element data to the database.
+        """Saves all element data to the database.
+
         May modify other (linked) elements.
         """
         pass
 
     @abstractmethod
     def delete(self):
-        """Recursively delete the subtree rooted at this element.
+        """Recursively deletes the subtree rooted at this element.
         """
         pass
 
     @abstractmethod
     def merge(self, other):
-        """Merge another element of the same type into self.
+        """Merges another element of the same type into self.
+
         This deletes the other element and updates self.
         """
         pass
 
     def get_storage(self):
-        """Get the tree root using upward traversal
+        """Gets the tree root using upward traversal.
 
         :return: tree root
         :rtype:  class:`contacto.storage.Storage`
@@ -83,7 +86,7 @@ class StorageElement(ABC):
         return p
 
     def get_conn(self):
-        """Get database connection from the root
+        """Gets database connection from the root.
 
         :return: database connection
         :rtype:  class:`sqlite3.Connection`
@@ -91,7 +94,7 @@ class StorageElement(ABC):
         return self.get_storage().db_conn
 
     def update_safe(self):
-        """Single-transaction update
+        """Single-transaction update.
 
         :return: success
         :rtype:  bool
@@ -106,7 +109,7 @@ class StorageElement(ABC):
             return False
 
     def delete_safe(self):
-        """Single-transaction delete
+        """Single-transaction delete.
 
         :return: success
         :rtype:  bool
@@ -122,7 +125,7 @@ class StorageElement(ABC):
             return False
 
     def merge_safe(self, other):
-        """Single-transaction merge
+        """Single-transaction merge.
 
         :return: success
         :rtype:  bool
@@ -140,6 +143,7 @@ class StorageElement(ABC):
 
 class Group(StorageElement):
     """An entity group with unique name and pointer to the root storage.
+
     A Group hosts Entities in a name-indexed dictionary.
     """
 
@@ -154,7 +158,8 @@ class Group(StorageElement):
         return f"{self.name}"
 
     def create_entity(self, name):
-        """Create a new Entity in this Group.
+        """Creates a new Entity in this Group.
+
         Note that Entity names are unique in a Group.
 
         :param name: Entity name
@@ -172,7 +177,7 @@ class Group(StorageElement):
         return ent
 
     def create_entity_safe(self, name):
-        """A single-transaction variant of create_entity
+        """A single-transaction variant of create_entity.
         """
         try:
             with self.get_conn():
@@ -182,7 +187,7 @@ class Group(StorageElement):
             return None
 
     def read(self):
-        """Read Group from DB
+        """Reads Group from DB.
         """
         cur = self.get_conn().cursor()
         sql = 'SELECT name FROM "group" WHERE id=?'
@@ -190,13 +195,13 @@ class Group(StorageElement):
         self.name = cur.fetchone()[0]
 
     def update(self):
-        """Save Group data to DB
+        """Saves Group data to DB.
         """
         sql = 'UPDATE "group" SET name=? WHERE id=?'
         self.get_conn().execute(sql, (self.name, self.id))
 
     def delete(self):
-        """Delete Group (and its Entities) from tree and DB
+        """Deletes Group (and its Entities) from tree and DB.
         """
         for entity in self.entities.copy().values():
             entity.delete()
@@ -205,6 +210,8 @@ class Group(StorageElement):
         self.parent.groups.pop(self.name, None)
 
     def merge(self, other):
+        """Merges another Group into self.
+        """
         for name, oentity in other.entities.copy().items():
             if name in self.entities:
                 self.entities[name].merge(oentity)
@@ -216,12 +223,13 @@ class Group(StorageElement):
 
 class Entity(StorageElement):
     """The Entity tree element that carries Attributes.
-    An Entity hosts an Attribute dictionary, its name
+
+    Entity hosts an Attribute dictionary, its name
     and an optional binary thumbnail (image).
     """
 
     def __init__(self, eid, name, thumbnail, parent):
-        """Initialize using DB data and parent(Group)
+        """Initialize using DB data and parent(Group).
         """
         super().__init__(parent, name)
         self.id = eid
@@ -230,7 +238,8 @@ class Entity(StorageElement):
         self.refs = set()
 
     def create_attribute(self, name, dtype, data):
-        """Create a new Attribute for this Entity.
+        """Creates a new Attribute for this Entity.
+
         Note that Attribute names are unique in an Entity.
 
         :param name: Attribute name
@@ -255,7 +264,7 @@ class Entity(StorageElement):
         return attr
 
     def create_attribute_safe(self, name, dtype, data):
-        """A single-transaction variant of create_attribute
+        """A single-transaction variant of create_attribute.
         """
         try:
             with self.get_conn():
@@ -265,7 +274,7 @@ class Entity(StorageElement):
             return None
 
     def read(self):
-        """Read Entity data from DB
+        """Reads Entity data from DB.
         """
         cur = self.get_conn().cursor()
         sql = 'SELECT name, thumbnail FROM entity WHERE id=?'
@@ -273,13 +282,13 @@ class Entity(StorageElement):
         self.name, self.thumbnail = cur.fetchone()
 
     def update(self):
-        """Save Entity data to DB
+        """Saves Entity data to DB.
         """
         sql = 'UPDATE entity SET name=?, thumbnail=? WHERE id=?'
         self.get_conn().execute(sql, (self.name, self.thumbnail, self.id))
 
     def delete(self):
-        """Delete Entity (and its Attributes) from DB and tree.
+        """Deletes Entity (and its Attributes) from DB and tree.
         """
         for attr in self.attributes.copy().values():
             attr.delete()
@@ -291,7 +300,7 @@ class Entity(StorageElement):
             ref.delete()
 
     def merge(self, other):
-        """Merge another Entity into self
+        """Merges another Entity into self.
         """
         if other.thumbnail and not self.thumbnail:
             self.thumbnail = other.thumbnail
@@ -310,7 +319,8 @@ class Entity(StorageElement):
         other.delete()
 
     def thumbnail_from_attr(self):
-        """Set a thumbnail from a "thumbnail" attribute.
+        """Sets a thumbnail from a "thumbnail" attribute.
+
         For convenience, a "thumbnail" attribute may carry an entity's
         thumbnail. This is a notification hook to try querying it for data.
         """
@@ -329,12 +339,13 @@ class Entity(StorageElement):
 
 class Attribute(StorageElement):
     """The leaf of the storage tree containing contact data.
+
     An Attribute has a name, data and data type.
 
     There are 4 types of Attribute data, listed in `contacto.helpers.DType`:
     BIN(ary), TEXT, A(ttribute) X-REF(erence) and E(ntity) X-REF(erence).
 
-    AXREF attributes may form an oriented graph which MUST NOT form loops.
+    AXREF attributes may form an oriented graph which **must not** form loops.
     Operations Create, Update and Merge are checked for loop induction.
 
     X-REF attributes register at their targets and are deleted when their
@@ -343,7 +354,7 @@ class Attribute(StorageElement):
     """
 
     def __init__(self, aid, name, dtype, data, parent):
-        """The constructor linking to a parent(Entity)
+        """The constructor linking to a parent(Entity).
         """
         super().__init__(parent, name)
         self.__thumb = name == 'thumbnail'
@@ -353,20 +364,20 @@ class Attribute(StorageElement):
         self.refs = set()
 
     def ref_register(self):
-        """ Registers a reference to its target
+        """ Registers a reference to its target.
         """
         if self.type.is_xref():
             self.__loop_detect()
             self.data.refs.add(self)
 
     def ref_unregister(self):
-        """ Unregisters a reference from its target
+        """ Unregisters a reference from its target.
         """
         if self.type.is_xref():
             self.data.refs.discard(self)
 
     def __thumb_hook(self):
-        """Notify the Entity for thumbnail update (if applicable)
+        """Notifies the Entity for thumbnail update (if applicable).
         """
         if self.__thumb:
             self.parent.thumbnail_from_attr()
@@ -376,7 +387,7 @@ class Attribute(StorageElement):
                 ref.__thumb_hook()
 
     def read(self):
-        """Update Attribute data from the DB
+        """Updates Attribute data from the DB.
         """
         cur = self.get_conn().cursor()
         sql = 'SELECT name, type, data FROM attribute WHERE id=?'
@@ -389,7 +400,7 @@ class Attribute(StorageElement):
             self.data = storage.elem_from_refid(self.type, self.data)
 
     def update(self):
-        """Save Attribute data into the DB, checked for loops
+        """Saves Attribute data into the DB, checked for loops.
         """
         # check previous data for obsolete XREF registration
         t, d = self.type, self.data
@@ -407,7 +418,7 @@ class Attribute(StorageElement):
         self.__thumb_hook()
 
     def delete(self):
-        """Delete Attribute from tree and DB (may cascade!)
+        """Deletes Attribute from tree and DB (may cascade!)
         """
         sql = 'DELETE FROM attribute WHERE id=?'
         self.get_conn().execute(sql, [self.id])
@@ -419,7 +430,7 @@ class Attribute(StorageElement):
         self.__thumb_hook()
 
     def merge(self, other):
-        """Merge another Attribute into self, checked for loops
+        """Merges another Attribute into self, checked for loops.
         """
         # loop prevention
         self.ref_unregister()
@@ -436,7 +447,8 @@ class Attribute(StorageElement):
         other.delete()
 
     def get(self):
-        """Get the actual data the Attribute references.
+        """Gets the actual data the Attribute references.
+
         For non-XREF Attributes this returns own data.
         For XREFs, the REF chain is traced to a non-REF source.
         This may be an Entity or a non-XREF Attribute.
@@ -451,7 +463,8 @@ class Attribute(StorageElement):
         return self.type, self.data
 
     def rotate(self):
-        """Rotate the attribute in a logrotate way.
+        """Rotates the attribute in a logrotate way.
+
         A single Attribute named "A" is copied into one named "A_1".
         If "A_1" already exists, it is copied into "A_2" and so on.
         This helps maintain an attribute value history.
@@ -459,7 +472,7 @@ class Attribute(StorageElement):
         self.__rotate(f"{self.name}_1")
 
     def rotate_safe(self):
-        """A single-transaction variant of rotate
+        """A single-transaction variant of rotate.
         """
         try:
             with self.get_conn():
@@ -470,7 +483,7 @@ class Attribute(StorageElement):
             return False
 
     def __rotate(self, nxt_name):
-        """Recursive rotate, next Attribute name is passed as accumulator
+        """Recursive rotate, next Attribute name is passed as accumulator.
         """
         ent = self.parent
         # recursively rotate until end of rotate-chain is found
@@ -489,7 +502,7 @@ class Attribute(StorageElement):
             ent.create_attribute(nxt_name, self.type, self.data)
 
     def __loop_detect(self, stop=None):
-        """Traverse reflinks recursively and detect loops
+        """Traverses reflinks recursively and detects loops.
         """
         if self.type is DType.EXREF:
             return
@@ -503,6 +516,7 @@ class Attribute(StorageElement):
 
 class Storage:
     """The root of the storage tree and wrapper of the DB connection.
+
     Provides communication with an SQLite database and reads the tree from it.
     A Storage object is needed for all of Contacto's functionality.
 
@@ -510,7 +524,8 @@ class Storage:
     """
 
     def __init__(self, db_file):
-        """Initialize the database with a path to the database.
+        """Initializes the database with a path to the database.
+
         Optionally, provide a ":memory:" string to create DB in-memory.
 
         :param db_file: path to the database (or :memory:)
@@ -528,12 +543,12 @@ class Storage:
         self.reload()
 
     def __del__(self):
-        """Close the DB connection on deletion
+        """Closes the DB connection on deletion.
         """
         self.db_conn.close()
 
     def set_foreign_keys(self, on):
-        """Turn foreign keys ON or OFF
+        """Turns foreign keys ON or OFF.
 
         :param on: FK mode
         :type on:  bool
@@ -543,6 +558,7 @@ class Storage:
 
     def reload(self):
         """Discards any existing storage tree and reads it anew from DB.
+
         Constructs the entire tree including Attributes.
         """
         # NAME-indexed group dict
@@ -592,7 +608,7 @@ class Storage:
             attribute.ref_register()
 
     def get_group(self, name):
-        """Gets a Group by its name
+        """Gets a Group by its name.
 
         :param name: Group name
         :type name:  str
@@ -604,7 +620,7 @@ class Storage:
         return self.groups[name]
 
     def get_entity(self, group_name, name):
-        """Gets an Entity by its name and Group name
+        """Gets an Entity by its name and Group name.
 
         :param group_name: Group name
         :type group_name:  str
@@ -619,7 +635,7 @@ class Storage:
         return group.entities[name]
 
     def get_attribute(self, group_name, entity_name, name):
-        """Gets an Attribute by its name and the names of its parents
+        """Gets an Attribute by its name and the names of its parents.
 
         :param group_name: Group name
         :type group_name:  str
@@ -670,7 +686,7 @@ class Storage:
             return None
 
     def get_from_rspec(self, p_rspec):
-        """Get a tree element from a parsed refspec.
+        """Gets a tree element from a parsed refspec.
         Parsed refspec is a triplet of None|element names scoping the tree.
 
         :param p_rspec: parsed refspec
@@ -690,6 +706,7 @@ class Storage:
 
     def elem_from_refid(self, dtype, elem_id):
         """Returns an Entity or Attribute from its database ID.
+
         The type of element is decided by a DType XREF specifier.
         This method is used to find the target of a XREF from ID only.
 
