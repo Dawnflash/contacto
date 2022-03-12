@@ -1,5 +1,5 @@
 Click==7.0
-Pillow==9.0.0
+Pillow==9.0.1
 PyYAML==5.4
 PyQt5==5.14.1
 Sphinx==2.3.1
